@@ -28,15 +28,23 @@ function sketch(p) {
   };
 
   async function getPoses() {
-    // unhadled rejection (TypeError)
+    // hnadle rejection (TypeError)
     try {
       poses = await detector.estimatePoses(video.elt);
     } catch (error) {
-      console.log(error);
+      console.log(detector);
+      await init();
     }
 
     setTimeout(getPoses, 0);
   }
+
+  // x,y of chosen joints for drawing
+
+  // use keypoint3d to get -1 to 1 meters
+  // orientation of limbs (angle) degrees
+  // velocity of limbs m/s
+  // acceleration of limbs m/s
 
   p.draw = function () {
     let time;
