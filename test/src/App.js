@@ -1,11 +1,15 @@
 import React from "react";
+import Button from "react-bootstrap/Button";
 import { ReactP5Wrapper } from "react-p5-wrapper";
 import Inconsolata from "./font/Inconsolata-Black.otf";
 import * as poseDetection from "@tensorflow-models/pose-detection";
 import "@tensorflow/tfjs-backend-webgl"; // for tfjs
 
 export default function App() {
+  var state = "not pressed";
   var bodypart = new Array(26).fill(false);
+  var values;
+  var track = [];
 
   function sketch2(p) {
     let detector;
@@ -27,7 +31,7 @@ export default function App() {
     }
 
     p.setup = async function () {
-      p.createCanvas(640, 480);
+      p.createCanvas(800, 480); // 640 480
       video = p.createCapture(p.VIDEO, videoReady);
       video.hide();
       await init();
@@ -54,7 +58,7 @@ export default function App() {
 
     p.draw = function () {
       let time;
-      p.background(220);
+      p.background("black");
       p.image(video, 0, 0);
       if (poses && poses.length > 0) {
         // for (var i = 0; i < poses[0].keypoints.length; i++) {
@@ -63,39 +67,104 @@ export default function App() {
         //   let y = poses[0].keypoints[i].y;
         //   let z = mapping(poses[0].keypoints3D[i].z, -1, 1, 0, 2);
 
-        let track = [];
         if (bodypart[0]) track = [12, 14];
-        if (bodypart[1]) track = [14, 16];
-        if (bodypart[2]) track = [11, 13];
-        if (bodypart[3]) track = [13, 15];
-        if (bodypart[4]) track = [24, 26];
-        if (bodypart[5]) track = [26, 28];
-        if (bodypart[6]) track = [23, 25];
-        if (bodypart[7]) track = [25, 27];
-        if (bodypart[8]) track = [28, 30, 32];
-        if (bodypart[9]) track = [27, 29, 31];
-        if (bodypart[10]) track = [16, 18, 20];
-        if (bodypart[11]) track = [15, 17, 19];
-        if (bodypart[12]) track = [22];
-        if (bodypart[13]) track = [20];
-        if (bodypart[14]) track = [18];
-        if (bodypart[15]) track = [21];
-        if (bodypart[16]) track = [19];
-        if (bodypart[17]) track = [17];
-        if (bodypart[18]) track = [11, 12, 23, 24];
-        if (bodypart[19]) track = [0];
-        if (bodypart[20]) track = [0];
-        if (bodypart[21]) track = [9, 10];
-        if (bodypart[22]) track = [8];
-        if (bodypart[23]) track = [7];
-        if (bodypart[24]) track = [5];
-        if (bodypart[25]) track = [2];
+        if (bodypart[1]) {
+          if (!track.includes(14)) track.push(14);
+          if (!track.includes(16)) track.push(16);
+        }
+        if (bodypart[2]) {
+          if (!track.includes(11)) track.push(11);
+          if (!track.includes(13)) track.push(13);
+        }
+        if (bodypart[3]) {
+          if (!track.includes(13)) track.push(13);
+          if (!track.includes(15)) track.push(15);
+        }
+        if (bodypart[4]) {
+          if (!track.includes(24)) track.push(24);
+          if (!track.includes(26)) track.push(26);
+        }
+        if (bodypart[5]) {
+          if (!track.includes(26)) track.push(26);
+          if (!track.includes(28)) track.push(28);
+        }
+        if (bodypart[6]) {
+          if (!track.includes(23)) track.push(23);
+          if (!track.includes(25)) track.push(25);
+        }
+        if (bodypart[7]) {
+          if (!track.includes(25)) track.push(25);
+          if (!track.includes(27)) track.push(27);
+        }
+        if (bodypart[8]) {
+          if (!track.includes(28)) track.push(28);
+          if (!track.includes(30)) track.push(30);
+          if (!track.includes(32)) track.push(32);
+        }
+        if (bodypart[9]) {
+          if (!track.includes(27)) track.push(27);
+          if (!track.includes(29)) track.push(29);
+          if (!track.includes(31)) track.push(31);
+        }
+        if (bodypart[10]) {
+          if (!track.includes(16)) track.push(16);
+          if (!track.includes(18)) track.push(18);
+          if (!track.includes(20)) track.push(20);
+        }
+        if (bodypart[11]) {
+          if (!track.includes(15)) track.push(15);
+          if (!track.includes(17)) track.push(17);
+          if (!track.includes(19)) track.push(19);
+        }
+        if (bodypart[12]) {
+          if (!track.includes(22)) track.push(22);
+        }
+        if (bodypart[13]) {
+          if (!track.includes(20)) track.push(20);
+        }
+        if (bodypart[14]) {
+          if (!track.includes(18)) track.push(18);
+        }
+        if (bodypart[15]) {
+          if (!track.includes(21)) track.push(21);
+        }
+        if (bodypart[16]) {
+          if (!track.includes(19)) track.push(19);
+        }
+        if (bodypart[17]) {
+          if (!track.includes(17)) track.push(17);
+        }
+        if (bodypart[18]) {
+          if (!track.includes(11)) track.push(11);
+          if (!track.includes(12)) track.push(12);
+          if (!track.includes(23)) track.push(23);
+          if (!track.includes(24)) track.push(24);
+        }
+        if (bodypart[19]) {
+          if (!track.includes(0)) track.push(0);
+        }
+        if (bodypart[20]) {
+          if (!track.includes(0)) track.push(0);
+        }
+        if (bodypart[21]) {
+          if (!track.includes(9)) track.push(9);
+          if (!track.includes(10)) track.push(10);
+        }
+        if (bodypart[22]) {
+          if (!track.includes(8)) track.push(8);
+        }
+        if (bodypart[23]) {
+          if (!track.includes(7)) track.push(7);
+        }
+        if (bodypart[24]) {
+          if (!track.includes(5)) track.push(5);
+        }
+        if (bodypart[25]) {
+          if (!track.includes(2)) track.push(2);
+        }
 
-        // when button pressed
-        let values = track.map((x) => []);
-        //
         p.fill("#006400");
-        if (track.length > 0)
+        if (track.length > 0) {
           for (let i = 0; i < track.length; i++) {
             if (poses[0].keypoints[track[i]].score > 0.8)
               p.circle(
@@ -104,16 +173,24 @@ export default function App() {
                 20
               );
           }
+        }
+
         // recording
-        for (let i = 0; i < track.length; i++) {
-          values[i].push({
-            x: poses[0].keypoints[track[i]].x,
-            y: poses[0].keypoints[track[i]].y,
-            time: time,
-          });
+        if (state === "pressed") {
+          p.fill("white");
+          p.textSize(25);
+          p.text("Recording ...", 650, 50);
+          for (let i = 0; i < track.length; i++) {
+            values[i].push({
+              x: poses[0].keypoints[track[i]].x,
+              y: poses[0].keypoints[track[i]].y,
+              time: time,
+            });
+          }
         }
         //
       }
+      console.log(state);
     };
   }
   function mapping(number, inMin, inMax, outMin, outMax) {
@@ -337,6 +414,26 @@ export default function App() {
     <div style={{ display: "flex", flexDirection: "row" }}>
       <div style={{ flex: 1 }}>
         <ReactP5Wrapper sketch={sketch} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <Button
+          variant="primary"
+          onClick={() =>
+            bodypart.includes(true)
+              ? ((state = "pressed"), (values = track.map((x) => [])))
+              : (state = "not pressed")
+          }
+        >
+          Start
+        </Button>
+      </div>
+      <div style={{ flex: 1 }}>
+        <Button
+          variant="primary"
+          onClick={() => ((state = "not pressed"), console.log(values))}
+        >
+          Stop
+        </Button>
       </div>
       <div style={{ flex: 1 }}>
         <ReactP5Wrapper sketch={sketch2} />
