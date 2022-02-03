@@ -1,5 +1,8 @@
 import * as poseDetection from "@tensorflow-models/pose-detection";
-import "@tensorflow/tfjs-backend-webgl"; // for tfjs
+import "@tensorflow/tfjs-core";
+// Register WebGL backend.
+import "@tensorflow/tfjs-backend-webgl";
+import "@mediapipe/pose";
 
 function sketch(p) {
   let detector;
@@ -10,9 +13,10 @@ function sketch(p) {
     const model = poseDetection.SupportedModels.BlazePose;
     const detectorConfig = {
       runtime: "tfjs",
-      modelType: "lite", // lite -> full -> heavy
+      //modelType: "full",
     };
     detector = await poseDetection.createDetector(model, detectorConfig);
+    console.log(detector);
   }
 
   async function videoReady() {
@@ -38,13 +42,6 @@ function sketch(p) {
 
     setTimeout(getPoses, 0);
   }
-
-  // x,y of chosen joints for drawing
-
-  // use keypoint3d to get -1 to 1 meters
-  // orientation of limbs (angle) degrees
-  // velocity of limbs m/s
-  // acceleration of limbs m/s
 
   p.draw = function () {
     let time;
