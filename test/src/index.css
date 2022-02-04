@@ -9,6 +9,7 @@
 }
 .canvas1 {
   position: relative;
+  background: url('./assets/background.jpg');
 }
 .canvas2 {
   position: absolute;

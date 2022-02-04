@@ -453,13 +453,13 @@ export default function App3() {
   }, []);
   return (
     <div>
+      <canvas className="canvas1" ref={output_canvas}></canvas>
       <video
         className="video"
         ref={input_video}
         width="320"
         height="240"
       ></video>
-      <canvas className="canvas1" ref={output_canvas}></canvas>
       <canvas
         className="canvas2"
         ref={video_canvas}
