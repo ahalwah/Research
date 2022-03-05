@@ -9,6 +9,7 @@
     "@mediapipe/drawing_utils": "^0.3.1620248257",
     "@mediapipe/holistic": "^0.5.1635989137",
     "@mediapipe/pose": "^0.4.1633558788",
+    "@mui/material": "^5.4.4",
     "@pixiv/three-vrm": "^0.6.7",
     "@tensorflow-models/pose-detection": "^0.0.6",
     "@tensorflow/tfjs-backend-webgl": "^3.12.0",
@@ -19,6 +20,8 @@
     "@testing-library/user-event": "^12.8.3",
     "bootstrap": "^5.1.3",
     "kalidokit": "^1.1.4",
+    "mathjs": "^10.1.1",
+    "ml5": "^0.5.0",
     "p5": "^1.4.0",
     "react": "^17.0.2",
     "react-bootstrap": "^2.0.3",
@@ -30,8 +33,8 @@
     "web-vitals": "^1.1.2"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "start": "react-scripts --max_old_space_size=4096 start",
+    "build": "react-scripts --max_old_space_size=4096 build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

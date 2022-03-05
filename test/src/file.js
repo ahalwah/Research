@@ -24,9 +24,13 @@ export default function File() {
 
   const onResults = (results) => {
     // Draw landmark guides
-    drawResults(results);
-    // Animate model
-    // animateVRM(currentVrm, results);
+    if (results) {
+      drawResults(results);
+      if (results.poseLandmarks) {
+        const nose = results.poseLandmarks[0];
+        console.log("x: " + nose.x + ", y: " + nose.y + ", z: " + nose.x);
+      }
+    }
   };
   const drawResults = (results) => {
     const canvasElement = output_canvas.current;
@@ -131,7 +135,7 @@ export default function File() {
 
   return (
     <div className="container">
-      <video ref={input_video} autoplay muted playsinline></video>
+      <video ref={input_video}></video>
       <canvas ref={output_canvas} width="640" height="480"></canvas>
     </div>
   );

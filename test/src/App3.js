@@ -465,6 +465,7 @@ export default function App3() {
         ref={video_canvas}
         width="320"
         height="240"
+        hidden
       ></canvas>
     </div>
   );

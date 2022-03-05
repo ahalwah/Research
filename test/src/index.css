@@ -9,7 +9,8 @@
 }
 .canvas1 {
   position: relative;
-  background: url('./assets/background.jpg');
+  background: url("./assets/background.jpg");
+  background-size: cover;
 }
 .canvas2 {
   position: absolute;
