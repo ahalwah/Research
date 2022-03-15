@@ -13,10 +13,20 @@ import * as Camera from "@mediapipe/camera_utils/camera_utils";
 import * as Drawing from "@mediapipe/drawing_utils/drawing_utils";
 
 export default function File3() {
-  // checkbox
+  // checkbox recording
   let checked = false;
   const handleChange = () => {
     checked = !checked;
+  };
+  // checkbox right hand
+  let rhandChecked = false;
+  const handleChange1 = () => {
+    rhandChecked = !rhandChecked;
+  };
+  // checkbox right upper arm
+  let ruarmChecked = false;
+  const handleChange2 = () => {
+    ruarmChecked = !ruarmChecked;
   };
   // Helper obj to access functions
   const help = new Helper();
@@ -68,21 +78,33 @@ export default function File3() {
             openCounter++;
           }
         }
+        // start recording
         if (closedCounter > 5 && timer == false) {
           // start count
           startTime = new Date();
           timer = true;
-          position = [
-            {
-              Phand: { x: hand[0].x, y: hand[0].y, z: hand[0].z },
-              PhandTip: { x: hand[12].x, y: hand[12].y, z: hand[12].z },
-              PhandThumb: { x: hand[4].x, y: hand[4].y, z: hand[4].z },
-              time: 0,
-            },
-          ];
-          keyPosition = [];
+          if (rhandChecked)
+            position = [
+              {
+                Phand: { x: hand[0].x, y: hand[0].y, z: hand[0].z },
+                PhandTip: { x: hand[12].x, y: hand[12].y, z: hand[12].z },
+                PhandThumb: { x: hand[4].x, y: hand[4].y, z: hand[4].z },
+                time: 0,
+              },
+            ];
+          if (ruarmChecked) {
+            const J1 = results.poseLandmarks[11],
+              J2 = results.poseLandmarks[13];
+            position = [
+              {
+                J1: { x: J1.x, y: J1.y, z: J1.z },
+                J2: { x: J2.x, y: J2.y, z: J2.z },
+              },
+            ];
+          }
           dualPosition = [];
         }
+        // do the recording
         if (timer == true) {
           // calculate time difference
           currentTime = new Date();
@@ -92,13 +114,25 @@ export default function File3() {
           // get seconds
           seconds = math.round(timeDiff);
           // add (x,y,z) coordinates
-          position.push({
-            Phand: { x: hand[0].x, y: hand[0].y, z: hand[0].z },
-            PhandTip: { x: hand[12].x, y: hand[12].y, z: hand[12].z },
-            PhandThumb: { x: hand[4].x, y: hand[4].y, z: hand[4].z },
-            time: seconds,
-          });
+          if (rhandChecked)
+            position.push({
+              Phand: { x: hand[0].x, y: hand[0].y, z: hand[0].z },
+              PhandTip: { x: hand[12].x, y: hand[12].y, z: hand[12].z },
+              PhandThumb: { x: hand[4].x, y: hand[4].y, z: hand[4].z },
+              time: seconds,
+            });
+          if (ruarmChecked) {
+            const J1 = results.poseLandmarks[11],
+              J2 = results.poseLandmarks[13];
+            position.push([
+              {
+                J1: { x: J1.x, y: J1.y, z: J1.z },
+                J2: { x: J2.x, y: J2.y, z: J2.z },
+              },
+            ]);
+          }
         }
+        // write seconds on the canvas
         if (timer == true && seconds > 0) {
           const canvasElement = output_canvas.current;
           const canvasCtx = canvasElement.getContext("2d");
@@ -108,73 +142,53 @@ export default function File3() {
           canvasCtx.fillText(seconds, 50, 50);
           canvasCtx.restore();
         }
+        // end recording
         if (timer == true && openCounter > 5) {
           timer = false;
           closedCounter = 0;
           openCounter = 0;
-          let G1, H1;
-          let frameBuffer = 0;
-          const frameCount = 20; // approx 3 seconds
-          // calculate key positions
+          // iterate through positions and calculate dual quaternion
           for (let i = 0; i < position.length; i++) {
-            const Phand = [
-              position[i].Phand.x,
-              position[i].Phand.y,
-              position[i].Phand.z,
-            ];
-            const PhandTip = [
-              position[i].PhandTip.x,
-              position[i].PhandTip.y,
-              position[i].PhandTip.z,
-            ];
-            const PhandThumb = [
-              position[i].PhandThumb.x,
-              position[i].PhandThumb.y,
-              position[i].PhandThumb.z,
-            ];
-            // const spatialQ = help.spatialDualQuaternion(
-            //   Phand,
-            //   PhandTip,
-            //   PhandThumb
-            // );
-            const planarQ = help.planarDualQuaternion(
-              Phand,
-              PhandTip,
-              PhandThumb
-            );
-            // const d = help.dFromDual(planarQ);
-            // console.log("hand " + Phand + " d " + d);
-            const R = 10000;
-            const d_hat = help.normalize(Phand); // unit vector along translation vector d
-            const d = help.mag(Phand); // magnitude of translation vector Phand (dsit from origin to hand)
-            const denom = math.sqrt(4 * R ** 2 + d ** 2);
-            const vector = math.multiply(d_hat, d / denom); // vector part of the quaternion
-            const D = [(2 * R) / denom, vector[0], vector[1], vector[2]];
-            const Ds = [D[0], -D[1], -D[2], -D[3]]; // conjugate of D
-            const Q = planarQ.real;
-            const G2 = help.multiply(D, Q);
-            const H2 = help.multiply(Ds, Q);
-            if (G1 && H1) {
-              const t1 = math.subtract(G1, G2);
-              const t2 = math.subtract(H1, H2);
-              const T1 = math.dot(t1, t1);
-              const T2 = math.dot(t2, t2);
-              const delta = math.sqrt(math.add(T1, T2)); // threshold < 0.2 and dtime > 3 seconds
-
-              if (delta < 0.2) {
-                if (frameBuffer == frameCount) {
-                  keyPosition.push(math.multiply(help.dFromDual(planarQ), -1));
-                  frameBuffer = 0;
-                } else frameBuffer++;
-              } else frameBuffer = 0;
+            if (rhandChecked) {
+              const Phand = [
+                position[i].Phand.x,
+                position[i].Phand.y,
+                position[i].Phand.z,
+              ];
+              const PhandTip = [
+                position[i].PhandTip.x,
+                position[i].PhandTip.y,
+                position[i].PhandTip.z,
+              ];
+              const PhandThumb = [
+                position[i].PhandThumb.x,
+                position[i].PhandThumb.y,
+                position[i].PhandThumb.z,
+              ];
+              // const spatialQ = help.spatialDualQuaternion(
+              //   Phand,
+              //   PhandTip,
+              //   PhandThumb
+              // );
+              const planarQ = help.planarDualQuaternion(
+                Phand,
+                PhandTip,
+                PhandThumb
+              );
+              dualPosition.push(planarQ);
             }
-            G1 = G2;
-            H1 = H2;
-            dualPosition.push(math.multiply(help.dFromDual(planarQ), -1));
+            if (ruarmChecked) {
+              const J1 = position[i].J1,
+                J2 = position[i].J2;
+              const P1 = [J2.x, J2.y, 0],
+                P2 = [J1.x, J1.y, 0];
+              const dualQuat = Dual_quat(
+                Homogenous_Matrix(P1, P2, 0),
+                Homogenous_Matrix(P1, P2, 1)
+              );
+              dualPosition.push(dualQuat);
+            }
           }
-          console.log(dualPosition);
-          console.log(keyPosition);
-          console.log(position[position.length - 1].time);
         }
       }
     }
@@ -285,29 +299,11 @@ export default function File3() {
     p5.draw = () => {
       p5.clear();
       p5.background(220);
-      if (keyPosition.length > 0) {
+      if (dualPosition.length > 0) {
         p5.stroke("red");
         p5.strokeWeight(5);
         for (let i = 0; i < dualPosition.length; i++) {
-          const point = dualPosition[i];
-          let x = p5.map(point[0], 0, 1, 0, width);
-          let y = p5.map(point[1], 0, 1, 0, height);
-          p5.point(x, y);
-        }
-        p5.stroke("black");
-        p5.textSize(15);
-        p5.strokeWeight(1);
-        p5.noFill();
-        for (let i = 0; i < keyPosition.length; i++) {
-          const point = keyPosition[i];
-          let x = p5.map(point[0], 0, 1, 0, width);
-          let y = p5.map(point[1], 0, 1, 0, height);
-          p5.text(i, x, y - 10);
-        }
-        p5.stroke("green");
-        p5.strokeWeight(10);
-        for (let i = 0; i < keyPosition.length; i++) {
-          const point = keyPosition[i];
+          const point = math.multiply(help.dFromDual(planarQ), -1);
           let x = p5.map(point[0], 0, 1, 0, width);
           let y = p5.map(point[1], 0, 1, 0, height);
           p5.point(x, y);
@@ -319,7 +315,11 @@ export default function File3() {
     <div style={{ display: "flex", flexDirection: "row" }}>
       <video ref={input_video} hidden></video>
       <canvas ref={output_canvas} width="640" height="480"></canvas>
-      <Checkbox label="Start Recording" onChange={handleChange} />
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <Checkbox label="Start Recording" onChange={handleChange} />
+        <Checkbox label="Right Hand" onChange={handleChange1} />
+        <Checkbox label="Right Upper-Arm" onChange={handleChange2} />
+      </div>
       <ReactP5Wrapper sketch={sketch} />
     </div>
   );

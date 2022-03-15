@@ -174,4 +174,66 @@ export default class Helper {
 
     return [d[0][0], d[1][0], d[2][0]];
   };
+  RfromDual = (dualQuaternion) => {
+    const real = dualQuaternion.real,
+      dual = dualQuaternion.dual;
+  };
+  // currently for right hand only
+  calcKeyPositions = (position) => {
+    let G1, H1;
+    let frameBuffer = 0;
+    const frameCount = 20; // approx 3 seconds
+    let keyPosition = [];
+    // calculate key positions
+    for (let i = 0; i < position.length; i++) {
+      const Phand = [
+        position[i].Phand.x,
+        position[i].Phand.y,
+        position[i].Phand.z,
+      ];
+      const PhandTip = [
+        position[i].PhandTip.x,
+        position[i].PhandTip.y,
+        position[i].PhandTip.z,
+      ];
+      const PhandThumb = [
+        position[i].PhandThumb.x,
+        position[i].PhandThumb.y,
+        position[i].PhandThumb.z,
+      ];
+      // const spatialQ = help.spatialDualQuaternion(
+      //   Phand,
+      //   PhandTip,
+      //   PhandThumb
+      // );
+      const planarQ = help.planarDualQuaternion(Phand, PhandTip, PhandThumb);
+      const R = 10000;
+      const d_hat = help.normalize(Phand); // unit vector along translation vector d
+      const d = help.mag(Phand); // magnitude of translation vector Phand (dsit from origin to hand)
+      const denom = math.sqrt(4 * R ** 2 + d ** 2);
+      const vector = math.multiply(d_hat, d / denom); // vector part of the quaternion
+      const D = [(2 * R) / denom, vector[0], vector[1], vector[2]];
+      const Ds = [D[0], -D[1], -D[2], -D[3]]; // conjugate of D
+      const Q = planarQ.real;
+      const G2 = help.multiply(D, Q);
+      const H2 = help.multiply(Ds, Q);
+      if (G1 && H1) {
+        const t1 = math.subtract(G1, G2);
+        const t2 = math.subtract(H1, H2);
+        const T1 = math.dot(t1, t1);
+        const T2 = math.dot(t2, t2);
+        const delta = math.sqrt(math.add(T1, T2)); // threshold < 0.2 and dtime > 3 seconds
+
+        if (delta < 0.2) {
+          if (frameBuffer == frameCount) {
+            keyPosition.push(math.multiply(help.dFromDual(planarQ), -1));
+            frameBuffer = 0;
+          } else frameBuffer++;
+        } else frameBuffer = 0;
+      }
+      G1 = G2;
+      H1 = H2;
+      //dualPosition.push(math.multiply(help.dFromDual(planarQ), -1));
+    }
+  };
 }
