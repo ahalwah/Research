@@ -1,7 +1,4 @@
 import React, { useRef, useEffect } from "react";
-import Homogenous_Matrix from "./functions/axis_angle";
-import Dual_quat from "./functions/dual_quaternion";
-import Translation from "./functions/dFromDual";
 import { ReactP5Wrapper } from "react-p5-wrapper";
 import * as math from "mathjs";
 import * as ml5 from "ml5/dist/ml5";
@@ -11,6 +8,8 @@ import * as Holistic from "@mediapipe/holistic/holistic";
 import * as Camera from "@mediapipe/camera_utils/camera_utils";
 // mediapipe drawing tools
 import * as Drawing from "@mediapipe/drawing_utils/drawing_utils";
+import rarm1URL from "./assets/right arm 1.obj";
+import Inconsolata from "./font/Inconsolata-Black.otf";
 
 export default function File3() {
   // checkbox recording
@@ -33,7 +32,6 @@ export default function File3() {
   // append position array during recording
   let position = [];
   let dualPosition = [];
-  let keyPosition = [];
   let previousFrameTime = 0;
 
   // React DOM references
@@ -46,16 +44,33 @@ export default function File3() {
   let loaded = false;
 
   // timer
-  let startTime, currentTime;
+  let startTime = null,
+    currentTime;
   let timer = false;
   let seconds;
-  let closedCounter = 0,
+  let inCircleCounter = 0,
     openCounter = 0;
+  // is index pointer in circle
+  let inCircle = false;
+
+  let orientation;
 
   const onResults = (results) => {
     // Draw landmark guides
     if (results) {
+      const canvasElement = output_canvas.current;
+      const canvasCtx = canvasElement.getContext("2d");
       drawResults(results, new Date());
+      if (results.poseLandmarks) {
+        const J1 = results.poseLandmarks[12],
+          J2 = results.poseLandmarks[14];
+        const P2 = [J1.x, J1.y, 0],
+          P1 = [J2.x, J2.y, 0];
+        const dualQuat = help.dualQuaternion(P1, P2);
+        // console.log(dualQuat);
+        orientation = help.rFromDual(dualQuat);
+        // console.log(orientation);
+      }
       if (results.rightHandLandmarks) {
         const hand = results.rightHandLandmarks;
         if (loaded == true && checked) {
@@ -69,17 +84,28 @@ export default function File3() {
             inputs.push(z);
           }
           brain.classify(inputs, gotResult);
-          if (poseLabel == 1) {
-            console.log("Closed");
-            closedCounter++;
+
+          if (inCircle) {
+            //console.log("in circle");
+            inCircleCounter++;
           }
+          // open hand
           if (poseLabel == 2) {
-            console.log("Open");
+            //console.log("Open");
             openCounter++;
           }
         }
-        // start recording
-        if (closedCounter > 5 && timer == false) {
+        // count down 5 seconds first
+        if (inCircleCounter > 15 && timer == false && startTime == null) {
+          console.log("true");
+          startTime = new Date();
+        }
+        if (inCircleCounter > 15 && timer == false && startTime != null) {
+          seconds = math.floor((new Date() - startTime) / 1000);
+          console.log(seconds);
+        }
+        // intiatie recording
+        if (inCircleCounter > 15 && timer == false && seconds >= 5) {
           // start count
           startTime = new Date();
           timer = true;
@@ -104,6 +130,7 @@ export default function File3() {
           }
           dualPosition = [];
         }
+
         // do the recording
         if (timer == true) {
           // calculate time difference
@@ -124,30 +151,40 @@ export default function File3() {
           if (ruarmChecked) {
             const J1 = results.poseLandmarks[11],
               J2 = results.poseLandmarks[13];
-            position.push([
-              {
-                J1: { x: J1.x, y: J1.y, z: J1.z },
-                J2: { x: J2.x, y: J2.y, z: J2.z },
-              },
-            ]);
+            position.push({
+              J1: { x: J1.x, y: J1.y, z: J1.z },
+              J2: { x: J2.x, y: J2.y, z: J2.z },
+            });
           }
+        }
+        // write count down seconds on the canvas
+        if (timer == false && startTime != null) {
+          // canvasCtx.save();
+          canvasCtx.font = "200px Arial";
+          canvasCtx.fillStyle = "red";
+          canvasCtx.fillText(
+            5 - seconds,
+            canvasElement.width / 2,
+            canvasElement.height / 2
+          );
+          // canvasCtx.restore();
         }
         // write seconds on the canvas
         if (timer == true && seconds > 0) {
-          const canvasElement = output_canvas.current;
-          const canvasCtx = canvasElement.getContext("2d");
-          canvasCtx.save();
           canvasCtx.font = "50px Arial";
-          canvasCtx.fillStyle = "yellow";
+          canvasCtx.fillStyle = "red";
           canvasCtx.fillText(seconds, 50, 50);
-          canvasCtx.restore();
         }
         // end recording
         if (timer == true && openCounter > 5) {
+          // reset variables
           timer = false;
-          closedCounter = 0;
+          startTime = null;
+          inCircleCounter = 0;
           openCounter = 0;
+
           // iterate through positions and calculate dual quaternion
+          console.log(position);
           for (let i = 0; i < position.length; i++) {
             if (rhandChecked) {
               const Phand = [
@@ -182,13 +219,11 @@ export default function File3() {
                 J2 = position[i].J2;
               const P1 = [J2.x, J2.y, 0],
                 P2 = [J1.x, J1.y, 0];
-              const dualQuat = Dual_quat(
-                Homogenous_Matrix(P1, P2, 0),
-                Homogenous_Matrix(P1, P2, 1)
-              );
+              const dualQuat = help.dualQuaternion(P1, P2);
               dualPosition.push(dualQuat);
             }
           }
+          console.log(dualPosition);
         }
       }
     }
@@ -232,10 +267,44 @@ export default function File3() {
       lineWidth: 2,
     });
     // Print FPS on canvas
-    canvasCtx.font = "50px Arial";
-    canvasCtx.fillStyle = "pink";
-    canvasCtx.fillText(FPS, canvasElement.width - 100, 50);
-    canvasCtx.restore();
+    // canvasCtx.font = "50px Arial";
+    // canvasCtx.fillStyle = "pink";
+    // canvasCtx.fillText(FPS, canvasElement.width - 100, 50);
+    // canvasCtx.restore();
+
+    // create circular button on canvas
+    canvasCtx.beginPath();
+    canvasCtx.arc(50, 50, 20, 0, 2 * math.pi, false);
+    canvasCtx.fillStyle = "green";
+    canvasCtx.fill();
+    canvasCtx.lineWidth = 5;
+    canvasCtx.strokeStyle = "#003300";
+    canvasCtx.stroke();
+    // highlight index finger
+    if (results.rightHandLandmarks) {
+      canvasCtx.beginPath();
+      canvasCtx.arc(
+        results.rightHandLandmarks[8].x * canvasElement.width,
+        results.rightHandLandmarks[8].y * canvasElement.height,
+        10,
+        0,
+        2 * math.pi,
+        false
+      );
+      canvasCtx.fillStyle = "blue";
+      canvasCtx.fill();
+      canvasCtx.lineWidth = 3;
+      canvasCtx.strokeStyle = "black";
+      canvasCtx.stroke();
+
+      // check if index pointer is on button
+      const x = results.rightHandLandmarks[8].x * canvasElement.width,
+        y = results.rightHandLandmarks[8].y * canvasElement.height;
+      const center_x = 50,
+        center_y = 50,
+        radius = 20;
+      inCircle = (x - center_x) ** 2 + (y - center_y) ** 2 <= radius ** 2;
+    }
   };
 
   function brainLoaded() {
@@ -293,22 +362,46 @@ export default function File3() {
   function sketch(p5) {
     const height = 480,
       width = 640;
+    let myFont;
+    p5.preload = () => {
+      myFont = p5.loadFont(Inconsolata);
+    };
     p5.setup = () => {
-      p5.createCanvas(width, height);
+      p5.createCanvas(width, height, p5.WEBGL);
     };
     p5.draw = () => {
       p5.clear();
       p5.background(220);
-      if (dualPosition.length > 0) {
-        p5.stroke("red");
-        p5.strokeWeight(5);
-        for (let i = 0; i < dualPosition.length; i++) {
-          const point = math.multiply(help.dFromDual(planarQ), -1);
-          let x = p5.map(point[0], 0, 1, 0, width);
-          let y = p5.map(point[1], 0, 1, 0, height);
-          p5.point(x, y);
-        }
+      if (orientation) {
+        const r11 = orientation[0][0];
+        const r12 = orientation[0][1];
+        const r13 = orientation[0][2];
+        const r21 = orientation[1][0];
+        const r22 = orientation[1][1];
+        const r23 = orientation[1][2];
+        const r31 = orientation[2][0];
+        const r32 = orientation[2][1];
+        const r33 = orientation[2][2];
+        p5.applyMatrix(
+          r11,
+          r12,
+          r13,
+          0,
+          r21,
+          r22,
+          r23,
+          0,
+          r31,
+          r32,
+          r33,
+          0,
+          0,
+          0,
+          0,
+          1
+        );
       }
+      p5.ellipsoid(30, 80, 80);
     };
   }
   return (

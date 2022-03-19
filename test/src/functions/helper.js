@@ -1,5 +1,4 @@
 import * as math from "mathjs";
-import { max } from "mathjs";
 export default class Helper {
   // subtract two points
   diffPoint = (arr1, arr2) => {
@@ -48,6 +47,127 @@ export default class Helper {
       (arg1[0] * arg2[0] + arg1[1] * arg2[1] + arg1[2] * arg2[2]);
     return result;
   };
+  Homogenous_Matrix(P1, P2) {
+    // P1 = Pchild, P2 = Pparent
+
+    // Initial position of limb
+    const Vinitial = [0, -1, 0];
+    // Final position of limb
+    const Vfinal = this.normalize(this.diffPoint(P1, P2));
+
+    // unit axis of rtation (normalized)
+    const s = this.normalize(this.cross(Vinitial, Vfinal));
+
+    // angle of rotation in radians
+    const theta = math.acos(
+      (-1 * this.dot(Vinitial, Vfinal)) /
+        (this.mag(Vinitial) * this.mag(Vfinal))
+    );
+    //console.log((theta * 180) / math.pi);
+
+    // Euler Rodrigues Parameters
+    const q1 = s[0] * math.sin(theta / 2);
+    const q2 = s[1] * math.sin(theta / 2);
+    const q3 = s[2] * math.sin(theta / 2);
+    const q4 = math.cos(theta / 2);
+
+    // Parameters Squared
+    const q12 = q1 ** 2;
+    const q22 = q2 ** 2;
+    const q32 = q3 ** 2;
+    const q42 = q4 ** 2;
+
+    // Rotation Matrix [R]
+    const S2 = q12 + q22 + q32 + q42;
+
+    const R11 = (1 / S2) * (q42 + q12 - q22 - q32);
+    const R12 = (2 / S2) * (q1 * q2 - q4 * q3);
+    const R13 = (2 / S2) * (q1 * q3 + q4 * q2);
+    const R21 = (2 / S2) * (q2 * q1 + q4 * q3);
+    const R22 = (1 / S2) * (q42 - q12 + q22 - q32);
+    const R23 = (2 / S2) * (q2 * q3 - q4 * q1);
+    const R31 = (2 / S2) * (q3 * q1 - q4 * q2);
+    const R32 = (2 / S2) * (q3 * q2 + q4 * q1);
+    const R33 = (1 / S2) * (q42 - q12 - q22 + q32);
+
+    // translation vector d
+    const d = this.normalize(this.diffPoint(P2, [0, 0, 0]));
+
+    // homogeneous matrix
+    const H = [
+      [R11, R12, R13, d[0]],
+      [R21, R22, R23, d[1]],
+      [R31, R32, R33, d[2]],
+      [0, 0, 0, 1],
+    ];
+
+    return H;
+  }
+  quaternion(P1, P2) {
+    // Initial position of limb
+    const Vinitial = [0, -1, 0];
+    // Final position of limb
+    const Vfinal = this.normalize(this.diffPoint(P1, P2));
+
+    // unit axis of rtation (normalized)
+    const s = this.normalize(this.cross(Vinitial, Vfinal));
+
+    // angle of rotation in radians
+    const theta = math.acos(
+      (-1 * this.dot(Vinitial, Vfinal)) /
+        (this.mag(Vinitial) * this.mag(Vfinal))
+    );
+    //console.log((theta * 180) / math.pi);
+
+    // Euler Rodrigues Parameters
+    const q1 = s[0] * math.sin(theta / 2);
+    const q2 = s[1] * math.sin(theta / 2);
+    const q3 = s[2] * math.sin(theta / 2);
+    const q4 = math.cos(theta / 2);
+
+    return [q1, q2, q3, q4];
+  }
+  dualQuaternion(P1, P2) {
+    // quaternion
+    const q = this.quaternion(P1, P2);
+
+    // homogenous matrix
+    const matrix = this.Homogenous_Matrix(P1, P2);
+
+    // translation vector
+    const d = [matrix[0][3], matrix[1][3], matrix[2][3]];
+
+    // quaternion
+    const q1 = q[0];
+    const q2 = q[1];
+    const q3 = q[2];
+    const q4 = q[3];
+
+    // quaternion of homogeneous euler parameters of rotation
+    const Q = [q1, q2, q3, q4];
+    const Q1 = q1,
+      Q2 = q2,
+      Q3 = q3,
+      Q4 = q4;
+
+    // quaternion representing translation
+    const holder = [
+      [0, -d[2], d[1], d[0]],
+      [d[2], 0, -d[0], d[1]],
+      [-d[1], d[0], 0, d[2]],
+      [-d[0], -d[1], -d[2], 0],
+    ];
+    var Q0 = math.multiply(math.multiply(0.5, holder), [
+      [Q1],
+      [Q2],
+      [Q3],
+      [Q4],
+    ]);
+    Q0 = [Q0[0][0], Q0[1][0], Q0[2][0], Q0[3][0]];
+
+    return { real: Q, dual: Q0 };
+  }
+  // for hand
   planarDualQuaternion = (Phand, PhandTip, PhandThumb) => {
     const u = math.subtract(PhandTip, Phand);
     const v = math.subtract(PhandThumb, Phand);
@@ -78,6 +198,7 @@ export default class Helper {
 
     return { real: Zrotation, dual: Ztranslation };
   };
+  // for hand
   spatialDualQuaternion = (Phand, PhandTip, PhandThumb) => {
     const u = math.subtract(PhandTip, Phand);
     const v = math.subtract(PhandThumb, Phand);
@@ -174,66 +295,95 @@ export default class Helper {
 
     return [d[0][0], d[1][0], d[2][0]];
   };
-  RfromDual = (dualQuaternion) => {
-    const real = dualQuaternion.real,
-      dual = dualQuaternion.dual;
+  rFromDual = (dualQuaternion) => {
+    const real = dualQuaternion.real;
+    // euler rodrigues parameters
+    const q1 = real[0],
+      q2 = real[1],
+      q3 = real[2],
+      q4 = real[3];
+    // parameters squared
+    const q12 = q1 ** 2,
+      q22 = q2 ** 2,
+      q32 = q3 ** 2,
+      q42 = q4 ** 2;
+
+    // Rotation Matrix [R]
+    const S2 = q12 + q22 + q32 + q42;
+
+    const R11 = (1 / S2) * (q42 + q12 - q22 - q32);
+    const R12 = (2 / S2) * (q1 * q2 - q4 * q3);
+    const R13 = (2 / S2) * (q1 * q3 + q4 * q2);
+    const R21 = (2 / S2) * (q2 * q1 + q4 * q3);
+    const R22 = (1 / S2) * (q42 - q12 + q22 - q32);
+    const R23 = (2 / S2) * (q2 * q3 - q4 * q1);
+    const R31 = (2 / S2) * (q3 * q1 - q4 * q2);
+    const R32 = (2 / S2) * (q3 * q2 + q4 * q1);
+    const R33 = (1 / S2) * (q42 - q12 - q22 + q32);
+
+    const rotMatrix = [
+      [R11, R12, R13],
+      [R21, R22, R23],
+      [R31, R32, R33],
+    ];
+    return rotMatrix;
   };
   // currently for right hand only
-  calcKeyPositions = (position) => {
-    let G1, H1;
-    let frameBuffer = 0;
-    const frameCount = 20; // approx 3 seconds
-    let keyPosition = [];
-    // calculate key positions
-    for (let i = 0; i < position.length; i++) {
-      const Phand = [
-        position[i].Phand.x,
-        position[i].Phand.y,
-        position[i].Phand.z,
-      ];
-      const PhandTip = [
-        position[i].PhandTip.x,
-        position[i].PhandTip.y,
-        position[i].PhandTip.z,
-      ];
-      const PhandThumb = [
-        position[i].PhandThumb.x,
-        position[i].PhandThumb.y,
-        position[i].PhandThumb.z,
-      ];
-      // const spatialQ = help.spatialDualQuaternion(
-      //   Phand,
-      //   PhandTip,
-      //   PhandThumb
-      // );
-      const planarQ = help.planarDualQuaternion(Phand, PhandTip, PhandThumb);
-      const R = 10000;
-      const d_hat = help.normalize(Phand); // unit vector along translation vector d
-      const d = help.mag(Phand); // magnitude of translation vector Phand (dsit from origin to hand)
-      const denom = math.sqrt(4 * R ** 2 + d ** 2);
-      const vector = math.multiply(d_hat, d / denom); // vector part of the quaternion
-      const D = [(2 * R) / denom, vector[0], vector[1], vector[2]];
-      const Ds = [D[0], -D[1], -D[2], -D[3]]; // conjugate of D
-      const Q = planarQ.real;
-      const G2 = help.multiply(D, Q);
-      const H2 = help.multiply(Ds, Q);
-      if (G1 && H1) {
-        const t1 = math.subtract(G1, G2);
-        const t2 = math.subtract(H1, H2);
-        const T1 = math.dot(t1, t1);
-        const T2 = math.dot(t2, t2);
-        const delta = math.sqrt(math.add(T1, T2)); // threshold < 0.2 and dtime > 3 seconds
+  // calcKeyPositions = (position) => {
+  //   let G1, H1;
+  //   let frameBuffer = 0;
+  //   const frameCount = 20; // approx 3 seconds
+  //   let keyPosition = [];
+  //   // calculate key positions
+  //   for (let i = 0; i < position.length; i++) {
+  //     const Phand = [
+  //       position[i].Phand.x,
+  //       position[i].Phand.y,
+  //       position[i].Phand.z,
+  //     ];
+  //     const PhandTip = [
+  //       position[i].PhandTip.x,
+  //       position[i].PhandTip.y,
+  //       position[i].PhandTip.z,
+  //     ];
+  //     const PhandThumb = [
+  //       position[i].PhandThumb.x,
+  //       position[i].PhandThumb.y,
+  //       position[i].PhandThumb.z,
+  //     ];
+  //     // const spatialQ = help.spatialDualQuaternion(
+  //     //   Phand,
+  //     //   PhandTip,
+  //     //   PhandThumb
+  //     // );
+  //     const planarQ = help.planarDualQuaternion(Phand, PhandTip, PhandThumb);
+  //     const R = 10000;
+  //     const d_hat = help.normalize(Phand); // unit vector along translation vector d
+  //     const d = help.mag(Phand); // magnitude of translation vector Phand (dsit from origin to hand)
+  //     const denom = math.sqrt(4 * R ** 2 + d ** 2);
+  //     const vector = math.multiply(d_hat, d / denom); // vector part of the quaternion
+  //     const D = [(2 * R) / denom, vector[0], vector[1], vector[2]];
+  //     const Ds = [D[0], -D[1], -D[2], -D[3]]; // conjugate of D
+  //     const Q = planarQ.real;
+  //     const G2 = help.multiply(D, Q);
+  //     const H2 = help.multiply(Ds, Q);
+  //     if (G1 && H1) {
+  //       const t1 = math.subtract(G1, G2);
+  //       const t2 = math.subtract(H1, H2);
+  //       const T1 = math.dot(t1, t1);
+  //       const T2 = math.dot(t2, t2);
+  //       const delta = math.sqrt(math.add(T1, T2)); // threshold < 0.2 and dtime > 3 seconds
 
-        if (delta < 0.2) {
-          if (frameBuffer == frameCount) {
-            keyPosition.push(math.multiply(help.dFromDual(planarQ), -1));
-            frameBuffer = 0;
-          } else frameBuffer++;
-        } else frameBuffer = 0;
-      }
-      G1 = G2;
-      H1 = H2;
-      //dualPosition.push(math.multiply(help.dFromDual(planarQ), -1));
-    }
-  };
+  //       if (delta < 0.2) {
+  //         if (frameBuffer == frameCount) {
+  //           keyPosition.push(math.multiply(help.dFromDual(planarQ), -1));
+  //           frameBuffer = 0;
+  //         } else frameBuffer++;
+  //       } else frameBuffer = 0;
+  //     }
+  //     G1 = G2;
+  //     H1 = H2;
+  //     //dualPosition.push(math.multiply(help.dFromDual(planarQ), -1));
+  //   }
+  // };
 }
