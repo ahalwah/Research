@@ -1,37 +1,31 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
+import Button from "react-bootstrap/Button";
 import { ReactP5Wrapper } from "react-p5-wrapper";
 import * as math from "mathjs";
 import * as ml5 from "ml5/dist/ml5";
 import Helper from "./functions/helper";
+import ExportCSV from "./functions/exportToCSV";
 import * as Holistic from "@mediapipe/holistic/holistic";
 // mediapipe camrea tools
 import * as Camera from "@mediapipe/camera_utils/camera_utils";
 // mediapipe drawing tools
 import * as Drawing from "@mediapipe/drawing_utils/drawing_utils";
-import rarm1URL from "./assets/right arm 1.obj";
 import Inconsolata from "./font/Inconsolata-Black.otf";
 
 export default function File3() {
   // checkbox recording
   let checked = false;
-  const handleChange = () => {
-    checked = !checked;
-  };
   // checkbox right hand
   let rhandChecked = false;
-  const handleChange1 = () => {
-    rhandChecked = !rhandChecked;
-  };
   // checkbox right upper arm
   let ruarmChecked = false;
-  const handleChange2 = () => {
-    ruarmChecked = !ruarmChecked;
-  };
+
   // Helper obj to access functions
   const help = new Helper();
   // append position array during recording
   let position = [];
   let dualPosition = [];
+  let csvData = [];
   let previousFrameTime = 0;
 
   // React DOM references
@@ -53,7 +47,7 @@ export default function File3() {
   // is index pointer in circle
   let inCircle = false;
 
-  let orientation;
+  let orientation, pos;
 
   const onResults = (results) => {
     // Draw landmark guides
@@ -69,7 +63,7 @@ export default function File3() {
         const dualQuat = help.dualQuaternion(P1, P2);
         // console.log(dualQuat);
         orientation = help.rFromDual(dualQuat);
-        // console.log(orientation);
+        pos = help.dFromDual(dualQuat);
       }
       if (results.rightHandLandmarks) {
         const hand = results.rightHandLandmarks;
@@ -86,7 +80,7 @@ export default function File3() {
           brain.classify(inputs, gotResult);
 
           if (inCircle) {
-            //console.log("in circle");
+            // console.log("in circle");
             inCircleCounter++;
           }
           // open hand
@@ -96,16 +90,15 @@ export default function File3() {
           }
         }
         // count down 5 seconds first
-        if (inCircleCounter > 15 && timer == false && startTime == null) {
+        if (inCircleCounter > 5 && timer == false && startTime == null) {
           console.log("true");
           startTime = new Date();
         }
-        if (inCircleCounter > 15 && timer == false && startTime != null) {
+        if (inCircleCounter > 5 && timer == false && startTime != null) {
           seconds = math.floor((new Date() - startTime) / 1000);
-          console.log(seconds);
         }
         // intiatie recording
-        if (inCircleCounter > 15 && timer == false && seconds >= 5) {
+        if (inCircleCounter > 5 && timer == false && seconds >= 5) {
           // start count
           startTime = new Date();
           timer = true;
@@ -173,7 +166,7 @@ export default function File3() {
         if (timer == true && seconds > 0) {
           canvasCtx.font = "50px Arial";
           canvasCtx.fillStyle = "red";
-          canvasCtx.fillText(seconds, 50, 50);
+          canvasCtx.fillText(seconds, canvasElement.width - 50, 50);
         }
         // end recording
         if (timer == true && openCounter > 5) {
@@ -224,6 +217,21 @@ export default function File3() {
             }
           }
           console.log(dualPosition);
+          // iterate through dual quaternion and fill csv data to test functionality
+          for (let i = 0; i < dualPosition.length; i++) {
+            const real = dualPosition[i].real,
+              dual = dualPosition[i].dual;
+            csvData.push({
+              Q1: real[0],
+              Q2: real[1],
+              Q3: real[2],
+              Q4: real[3],
+              Q01: dual[0],
+              Q02: dual[1],
+              Q03: dual[2],
+              Q03: dual[3],
+            });
+          }
         }
       }
     }
@@ -272,14 +280,16 @@ export default function File3() {
     // canvasCtx.fillText(FPS, canvasElement.width - 100, 50);
     // canvasCtx.restore();
 
-    // create circular button on canvas
-    canvasCtx.beginPath();
-    canvasCtx.arc(50, 50, 20, 0, 2 * math.pi, false);
-    canvasCtx.fillStyle = "green";
-    canvasCtx.fill();
-    canvasCtx.lineWidth = 5;
-    canvasCtx.strokeStyle = "#003300";
-    canvasCtx.stroke();
+    // create circular button on canvas if recording is checked
+    if (checked && timer == false) {
+      canvasCtx.beginPath();
+      canvasCtx.arc(50, 50, 20, 0, 2 * math.pi, false);
+      canvasCtx.fillStyle = "green";
+      canvasCtx.fill();
+      canvasCtx.lineWidth = 5;
+      canvasCtx.strokeStyle = "#003300";
+      canvasCtx.stroke();
+    }
     // highlight index finger
     if (results.rightHandLandmarks) {
       canvasCtx.beginPath();
@@ -359,6 +369,33 @@ export default function File3() {
     camera.start();
   }, []);
 
+  function userInterface(p5) {
+    const height = 480,
+      width = 640;
+    // checkbox for recording
+    let startRecording;
+    // checkbox right hand (limb)
+    let rhandCheckBox;
+    let exportButton;
+    p5.setup = () => {
+      p5.createCanvas(width, height);
+
+      startRecording = p5.createCheckbox("Start Recording", false);
+      startRecording.position(20, 500);
+
+      rhandCheckBox = p5.createCheckbox("Right Hand", false);
+      rhandCheckBox.position(20, 520);
+    };
+    p5.draw = () => {
+      p5.background(220);
+
+      checked = startRecording.checked();
+      rhandChecked = rhandCheckBox.checked();
+
+      if (startRecording.checked()) rhandCheckBox.removeAttribute("disabled");
+      else rhandCheckBox.attribute("disabled", "true");
+    };
+  }
   function sketch(p5) {
     const height = 480,
       width = 640;
@@ -372,7 +409,16 @@ export default function File3() {
     p5.draw = () => {
       p5.clear();
       p5.background(220);
-      if (orientation) {
+      if (false) {
+        // pos
+        const x = p5.map(pos[0] * -1, 0, 1, -width / 2, width / 2),
+          y = p5.map(pos[1] * -1, 0, 1, -height / 2, height / 2),
+          z = pos[2];
+        console.log(x + " " + y);
+        p5.translate(x, y, 0);
+      }
+      if (false) {
+        // orientation
         const r11 = orientation[0][0];
         const r12 = orientation[0][1];
         const r13 = orientation[0][2];
@@ -401,26 +447,32 @@ export default function File3() {
           1
         );
       }
+      p5.translate(0, 40, 0);
       p5.ellipsoid(30, 80, 80);
     };
   }
   return (
-    <div style={{ display: "flex", flexDirection: "row" }}>
-      <video ref={input_video} hidden></video>
-      <canvas ref={output_canvas} width="640" height="480"></canvas>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <Checkbox label="Start Recording" onChange={handleChange} />
-        <Checkbox label="Right Hand" onChange={handleChange1} />
-        <Checkbox label="Right Upper-Arm" onChange={handleChange2} />
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", flexDirection: "row" }}>
+        <video ref={input_video} hidden></video>
+        <canvas ref={output_canvas} width="640" height="480"></canvas>
       </div>
-      <ReactP5Wrapper sketch={sketch} />
+      <div style={{ display: "flex", flexDirection: "row" }}>
+        <ReactP5Wrapper sketch={userInterface} />
+        <ReactP5Wrapper sketch={sketch} />
+      </div>
     </div>
   );
 }
-const Checkbox = ({ label, value, onChange }) => {
+const Checkbox = ({ label, value, onChange, disabled }) => {
   return (
     <label>
-      <input type="checkbox" checked={value} onChange={onChange} />
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={onChange}
+        disabled={disabled}
+      />
       {label}
     </label>
   );

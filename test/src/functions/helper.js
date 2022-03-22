@@ -328,6 +328,25 @@ export default class Helper {
     ];
     return rotMatrix;
   };
+  rationalScrew(dualQuatArray, resolution) {
+    let result = [];
+    for (let i = 0; i < dualQuatArray - 1; i++) {
+      for (let t = 0; t <= 1; t += resolution) {
+        let real1 = dualQuatArray[i].real,
+          dual1 = dualQuatArray[i].dual;
+        let real2 = dualQuatArray[i + 1].real,
+          dual2 = dualQuatArray[i + 1].dual;
+        let term1 = math.multiply(1 - t, real1),
+          term2 = math.multiply(t, real2);
+        const realResult = math.add(term1, term2);
+        term1 = math.multiply(1 - t, dual1);
+        term2 = math.multiply(t, dual2);
+        const dualResult = math.add(term1, term2);
+        result.push({ real: realResult, dual: dualResult });
+      }
+    }
+    return result;
+  }
   // currently for right hand only
   // calcKeyPositions = (position) => {
   //   let G1, H1;
