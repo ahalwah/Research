@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useState } from "react";
-import Button from "react-bootstrap/Button";
 import { ReactP5Wrapper } from "react-p5-wrapper";
 import * as math from "mathjs";
 import * as ml5 from "ml5/dist/ml5";
@@ -13,12 +12,23 @@ import * as Drawing from "@mediapipe/drawing_utils/drawing_utils";
 import Inconsolata from "./font/Inconsolata-Black.otf";
 
 export default function File3() {
+  const [display, setdisplay] = useState(false);
   // checkbox recording
   let checked = false;
   // checkbox right hand
   let rhandChecked = false;
-  // checkbox right upper arm
+  // checkbox(cb) right upper arm
   let ruarmChecked = false;
+  // interpolat motion once
+  let interpolateOnce = false;
+  // cb for screw motion
+  let screwMotionChecked = false;
+  // cb for bezier motion
+  let bezierMotionChecked = false;
+  // spatial motion cb
+  let spatialChecked = false;
+  // planar motion cb
+  let planarChecked = false;
 
   // Helper obj to access functions
   const help = new Helper();
@@ -47,24 +57,12 @@ export default function File3() {
   // is index pointer in circle
   let inCircle = false;
 
-  let orientation, pos;
-
   const onResults = (results) => {
     // Draw landmark guides
     if (results) {
       const canvasElement = output_canvas.current;
       const canvasCtx = canvasElement.getContext("2d");
       drawResults(results, new Date());
-      if (results.poseLandmarks) {
-        const J1 = results.poseLandmarks[12],
-          J2 = results.poseLandmarks[14];
-        const P2 = [J1.x, J1.y, 0],
-          P1 = [J2.x, J2.y, 0];
-        const dualQuat = help.dualQuaternion(P1, P2);
-        // console.log(dualQuat);
-        orientation = help.rFromDual(dualQuat);
-        pos = help.dFromDual(dualQuat);
-      }
       if (results.rightHandLandmarks) {
         const hand = results.rightHandLandmarks;
         if (loaded == true && checked) {
@@ -80,18 +78,15 @@ export default function File3() {
           brain.classify(inputs, gotResult);
 
           if (inCircle) {
-            // console.log("in circle");
             inCircleCounter++;
           }
           // open hand
           if (poseLabel == 2) {
-            //console.log("Open");
             openCounter++;
           }
         }
         // count down 5 seconds first
         if (inCircleCounter > 5 && timer == false && startTime == null) {
-          console.log("true");
           startTime = new Date();
         }
         if (inCircleCounter > 5 && timer == false && startTime != null) {
@@ -99,9 +94,13 @@ export default function File3() {
         }
         // intiatie recording
         if (inCircleCounter > 5 && timer == false && seconds >= 5) {
+          // resets
+          inCircleCounter = 0;
+          openCounter = 0;
           // start count
           startTime = new Date();
           timer = true;
+
           if (rhandChecked)
             position = [
               {
@@ -177,8 +176,8 @@ export default function File3() {
           openCounter = 0;
 
           // iterate through positions and calculate dual quaternion
-          console.log(position);
-          for (let i = 0; i < position.length; i++) {
+          // ignore last 6 positions because it takes 1 second to read open hand/stop recording
+          for (let i = 0; i < position.length - 10; i++) {
             if (rhandChecked) {
               const Phand = [
                 position[i].Phand.x,
@@ -195,17 +194,23 @@ export default function File3() {
                 position[i].PhandThumb.y,
                 position[i].PhandThumb.z,
               ];
-              // const spatialQ = help.spatialDualQuaternion(
-              //   Phand,
-              //   PhandTip,
-              //   PhandThumb
-              // );
-              const planarQ = help.planarDualQuaternion(
-                Phand,
-                PhandTip,
-                PhandThumb
-              );
-              dualPosition.push(planarQ);
+              // check if spatial or planar motion and append chosen motion dualPosition
+              if (spatialChecked) {
+                const spatialQ = help.spatialDualQuaternion(
+                  Phand,
+                  PhandTip,
+                  PhandThumb
+                );
+                dualPosition.push(spatialQ);
+              }
+              if (planarChecked) {
+                const planarQ = help.planarDualQuaternion(
+                  Phand,
+                  PhandTip,
+                  PhandThumb
+                );
+                dualPosition.push(planarQ);
+              }
             }
             if (ruarmChecked) {
               const J1 = position[i].J1,
@@ -216,7 +221,18 @@ export default function File3() {
               dualPosition.push(dualQuat);
             }
           }
-          console.log(dualPosition);
+          // dualquat => control points in dualquat format (partition into 5 control points)
+          let controlPoints = []; // a temp array
+          for (
+            let i = 0;
+            i < dualPosition.length;
+            i += math.floor(dualPosition.length / 5)
+          ) {
+            controlPoints.push(dualPosition[i]);
+          }
+          controlPoints.shift(); // delete first point b/c of duplicate
+          dualPosition = controlPoints;
+
           // iterate through dual quaternion and fill csv data to test functionality
           for (let i = 0; i < dualPosition.length; i++) {
             const real = dualPosition[i].real,
@@ -261,19 +277,7 @@ export default function File3() {
     );
 
     canvasCtx.globalCompositeOperation = "source-over";
-    Drawing.drawConnectors(
-      canvasCtx,
-      results.rightHandLandmarks,
-      Holistic.HAND_CONNECTIONS,
-      {
-        color: "#22c3e3",
-        lineWidth: 5,
-      }
-    );
-    Drawing.drawLandmarks(canvasCtx, results.rightHandLandmarks, {
-      color: "#ff0364",
-      lineWidth: 2,
-    });
+
     // Print FPS on canvas
     // canvasCtx.font = "50px Arial";
     // canvasCtx.fillStyle = "pink";
@@ -283,7 +287,7 @@ export default function File3() {
     // create circular button on canvas if recording is checked
     if (checked && timer == false) {
       canvasCtx.beginPath();
-      canvasCtx.arc(50, 50, 20, 0, 2 * math.pi, false);
+      canvasCtx.arc(100, 50, 20, 0, 2 * math.pi, false);
       canvasCtx.fillStyle = "green";
       canvasCtx.fill();
       canvasCtx.lineWidth = 5;
@@ -291,7 +295,7 @@ export default function File3() {
       canvasCtx.stroke();
     }
     // highlight index finger
-    if (results.rightHandLandmarks) {
+    if (checked && timer == false) {
       canvasCtx.beginPath();
       canvasCtx.arc(
         results.rightHandLandmarks[8].x * canvasElement.width,
@@ -310,7 +314,7 @@ export default function File3() {
       // check if index pointer is on button
       const x = results.rightHandLandmarks[8].x * canvasElement.width,
         y = results.rightHandLandmarks[8].y * canvasElement.height;
-      const center_x = 50,
+      const center_x = 100,
         center_y = 50,
         radius = 20;
       inCircle = (x - center_x) ** 2 + (y - center_y) ** 2 <= radius ** 2;
@@ -376,79 +380,266 @@ export default function File3() {
     let startRecording;
     // checkbox right hand (limb)
     let rhandCheckBox;
+    // button for exporting data as csv
     let exportButton;
+    // checkbox for spatial capture
+    let spatialMotionCheckBox;
+    // checkbox for planar capture
+    let planarMotionCheckBox;
+    // checkbox for screw curve
+    let screwMotionCheckBox;
+    // checkbox for bezier
+    let bezierMotionCheckbox;
     p5.setup = () => {
       p5.createCanvas(width, height);
 
-      startRecording = p5.createCheckbox("Start Recording", false);
-      startRecording.position(20, 500);
+      // export button
+      exportButton = p5.createButton("Export to CSV");
+      exportButton.position(250, 520);
+      exportButton.mousePressed(Export);
 
+      // recording
+      startRecording = p5.createCheckbox("Allow Recording", false);
+      startRecording.position(20, 520);
+      // motion capture
+
+      planarMotionCheckBox = p5.createCheckbox("Planar Motion", false);
+      planarMotionCheckBox.position(20, 560);
+      spatialMotionCheckBox = p5.createCheckbox("Spatial Motion", false);
+      spatialMotionCheckBox.position(20, 580);
+
+      // right hand tracking
       rhandCheckBox = p5.createCheckbox("Right Hand", false);
-      rhandCheckBox.position(20, 520);
+      rhandCheckBox.position(20, 600);
+
+      // type of motion
+      screwMotionCheckBox = p5.createCheckbox("Screw", false);
+      screwMotionCheckBox.position(20, 640);
+      screwMotionCheckBox.changed(interpOnce);
+
+      bezierMotionCheckbox = p5.createCheckbox("Rational Bezier", false);
+      bezierMotionCheckbox.position(20, 660);
+      bezierMotionCheckbox.changed(interpOnce);
     };
+    function interpOnce() {
+      if (bezierMotionCheckbox.checked() || screwMotionCheckBox.checked())
+        interpolateOnce = true;
+    }
     p5.draw = () => {
       p5.background(220);
+      // p5.textSize(20);
+      // p5.text("Recording", 20, 30);
+      // p5.text("Motion Capture", 20, 60);
+      // p5.text("Type of Motion", 20, 120);
 
       checked = startRecording.checked();
       rhandChecked = rhandCheckBox.checked();
+      screwMotionChecked = screwMotionCheckBox.checked();
+      bezierMotionChecked = bezierMotionCheckbox.checked();
+      spatialChecked = spatialMotionCheckBox.checked();
+      planarChecked = planarMotionCheckBox.checked();
 
-      if (startRecording.checked()) rhandCheckBox.removeAttribute("disabled");
-      else rhandCheckBox.attribute("disabled", "true");
+      if (startRecording.checked()) {
+        rhandCheckBox.removeAttribute("disabled"); // enables
+        if (dualPosition.length > 0 && (spatialChecked || planarChecked)) {
+          exportButton.removeAttribute("disabled");
+        }
+      } else {
+        exportButton.attribute("disabled", ""); // disables
+        rhandCheckBox.attribute("disabled", "true");
+      }
+
+      // screw motion option if dualPosition array and recording stopped
+      if (dualPosition.length > 0 && timer == false) {
+        screwMotionCheckBox.removeAttribute("disabled");
+        bezierMotionCheckbox.removeAttribute("disabled");
+      } else {
+        screwMotionCheckBox.attribute("disabled", "true");
+        bezierMotionCheckbox.attribute("disabled", "true");
+      }
     };
+    function Export() {
+      console.log("export to csv");
+      ExportCSV(csvData, "data file");
+    }
   }
   function sketch(p5) {
     const height = 480,
       width = 640;
     let myFont;
+    let controlP = [],
+      controlO = [];
+    let interpolatedP = [],
+      interpolatedO = [];
     p5.preload = () => {
       myFont = p5.loadFont(Inconsolata);
     };
     p5.setup = () => {
       p5.createCanvas(width, height, p5.WEBGL);
     };
+    function drawFrame() {
+      p5.strokeWeight(2.0);
+      const length = 10.0;
+      p5.stroke("red");
+      p5.line(0.0, 0.0, 0.0, length, 0.0, 0.0); // x-axis
+      p5.stroke("blue");
+      p5.line(0.0, 0.0, 0.0, 0.0, length, 0.0); //y-axis
+      p5.stroke("green");
+      p5.line(0.0, 0.0, 0.0, 0.0, 0.0, length); //z-axis
+    }
     p5.draw = () => {
       p5.clear();
       p5.background(220);
-      if (false) {
-        // pos
-        const x = p5.map(pos[0] * -1, 0, 1, -width / 2, width / 2),
-          y = p5.map(pos[1] * -1, 0, 1, -height / 2, height / 2),
-          z = pos[2];
-        console.log(x + " " + y);
-        p5.translate(x, y, 0);
+      p5.orbitControl();
+      // if recording then reset positions and angles arrays
+      if (timer) {
+        controlP = [];
+        controlO = [];
+        interpolatedP = [];
+        interpolatedO = [];
       }
-      if (false) {
-        // orientation
-        const r11 = orientation[0][0];
-        const r12 = orientation[0][1];
-        const r13 = orientation[0][2];
-        const r21 = orientation[1][0];
-        const r22 = orientation[1][1];
-        const r23 = orientation[1][2];
-        const r31 = orientation[2][0];
-        const r32 = orientation[2][1];
-        const r33 = orientation[2][2];
-        p5.applyMatrix(
-          r11,
-          r12,
-          r13,
-          0,
-          r21,
-          r22,
-          r23,
-          0,
-          r31,
-          r32,
-          r33,
-          0,
-          0,
-          0,
-          0,
-          1
-        );
+      if (screwMotionChecked || bezierMotionChecked) {
+        if (dualPosition.length > 0 && interpolateOnce) {
+          // reset in case they were used
+          interpolatedP = [];
+          interpolatedO = [];
+          interpolateOnce = false;
+          for (let i = 0; i < dualPosition.length; i++) {
+            // calc translation
+            const pointPosition = help.dFromDual(dualPosition[i]);
+            controlP.push(pointPosition);
+            // calc orientation
+            const pointOrientation = help.rFromDual(dualPosition[i]);
+            controlO.push(pointOrientation);
+          }
+          let curve = [];
+          // screw points
+          if (screwMotionChecked) curve = help.rationalScrew(dualPosition, 0.1);
+          // bezier points
+          if (bezierMotionChecked)
+            curve = help.rationalBezier(dualPosition, 0.05);
+          for (let i = 0; i < curve.length; i++) {
+            // calc translation
+            const pointPosition = help.dFromDual(curve[i]);
+            interpolatedP.push(pointPosition);
+            // calc orientation
+            const pointOrientation = help.rFromDual(curve[i]);
+            interpolatedO.push(pointOrientation);
+          }
+        }
+
+        // draw interpolated positions/orientations
+        p5.stroke("brown");
+        if (interpolatedP.length > 0) {
+          for (let i = 0; i < interpolatedP.length; i++) {
+            // translation
+            const x = p5.map(
+                interpolatedP[i][0] * -1,
+                0,
+                1,
+                -width / 2,
+                width / 2
+              ),
+              y = p5.map(
+                interpolatedP[i][1] * -1,
+                0,
+                1,
+                -height / 2,
+                height / 2
+              ),
+              z = interpolatedP[i][2];
+
+            p5.push();
+            p5.translate(x, y, z);
+            const matrix = interpolatedO[i];
+            // rotation
+            const r11 = matrix[0][0];
+            const r12 = matrix[0][1];
+            const r13 = matrix[0][2];
+            const r21 = matrix[1][0];
+            const r22 = matrix[1][1];
+            const r23 = matrix[1][2];
+            const r31 = matrix[2][0];
+            const r32 = matrix[2][1];
+            const r33 = matrix[2][2];
+            p5.applyMatrix(
+              r11,
+              r12,
+              r13,
+              0,
+              r21,
+              r22,
+              r23,
+              0,
+              r31,
+              r32,
+              r33,
+              0,
+              0,
+              0,
+              0,
+              1
+            );
+            // scale down 70%
+            p5.scale(0.7);
+            // draw torus
+            // p5.torus(15, 7);
+            p5.ellipsoid(15, 30, 15);
+            // draw coordinate fram
+            //drawFrame();
+            p5.pop();
+          }
+        }
+
+        // draw control positions/orientations on canvas
+        p5.stroke("black");
+        if (controlP.length > 0) {
+          for (let i = 0; i < controlP.length; i++) {
+            // translation
+            const x = p5.map(controlP[i][0] * -1, 0, 1, -width / 2, width / 2),
+              y = p5.map(controlP[i][1] * -1, 0, 1, -height / 2, height / 2),
+              z = controlP[i][2];
+
+            p5.push();
+            p5.translate(x, y, z);
+            const matrix = controlO[i];
+            // rotation
+            const r11 = matrix[0][0];
+            const r12 = matrix[0][1];
+            const r13 = matrix[0][2];
+            const r21 = matrix[1][0];
+            const r22 = matrix[1][1];
+            const r23 = matrix[1][2];
+            const r31 = matrix[2][0];
+            const r32 = matrix[2][1];
+            const r33 = matrix[2][2];
+            p5.applyMatrix(
+              r11,
+              r12,
+              r13,
+              0,
+              r21,
+              r22,
+              r23,
+              0,
+              r31,
+              r32,
+              r33,
+              0,
+              0,
+              0,
+              0,
+              1
+            );
+            // draw torus
+            // p5.torus(15, 7);
+            p5.ellipsoid(15, 30, 15);
+            // draw coordinate fram
+            drawFrame();
+            p5.pop();
+          }
+        }
       }
-      p5.translate(0, 40, 0);
-      p5.ellipsoid(30, 80, 80);
     };
   }
   return (

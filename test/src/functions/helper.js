@@ -330,20 +330,54 @@ export default class Helper {
   };
   rationalScrew(dualQuatArray, resolution) {
     let result = [];
-    for (let i = 0; i < dualQuatArray - 1; i++) {
+    for (let i = 0; i < dualQuatArray.length - 1; i++) {
+      const real1 = dualQuatArray[i].real,
+        dual1 = dualQuatArray[i].dual;
+      const real2 = dualQuatArray[i + 1].real,
+        dual2 = dualQuatArray[i + 1].dual;
       for (let t = 0; t <= 1; t += resolution) {
-        let real1 = dualQuatArray[i].real,
-          dual1 = dualQuatArray[i].dual;
-        let real2 = dualQuatArray[i + 1].real,
-          dual2 = dualQuatArray[i + 1].dual;
         let term1 = math.multiply(1 - t, real1),
           term2 = math.multiply(t, real2);
         const realResult = math.add(term1, term2);
-        term1 = math.multiply(1 - t, dual1);
-        term2 = math.multiply(t, dual2);
-        const dualResult = math.add(term1, term2);
+        let term11 = math.multiply(1 - t, dual1),
+          term22 = math.multiply(t, dual2);
+        const dualResult = math.add(term11, term22);
         result.push({ real: realResult, dual: dualResult });
       }
+    }
+    return result;
+  }
+  factorial(n) {
+    if (n == 1 || n == 0) return 1;
+    else {
+      let res = 1;
+      for (let i = n; i > 0; i--) {
+        res *= i;
+      }
+      return res;
+    }
+  }
+  binomial(n, k) {
+    let nf = this.factorial(n);
+    let kf = this.factorial(k);
+    let nkf = this.factorial(n - k);
+
+    return nf / (kf * nkf);
+  }
+  rationalBezier(dualQuatArray, resolution) {
+    let result = [];
+    let n = dualQuatArray.length;
+    for (let t = 0; t <= 1; t += resolution) {
+      let sumReal = [0, 0, 0, 0],
+        sumDual = [0, 0, 0, 0];
+      for (let i = 0; i < n; i++) {
+        const real = dualQuatArray[i].real,
+          dual = dualQuatArray[i].dual;
+        let bern = this.binomial(n - 1, i) * t ** i * (1 - t) ** (n - 1 - i);
+        sumReal = math.add(sumReal, math.multiply(bern, real));
+        sumDual = math.add(sumDual, math.multiply(bern, dual));
+      }
+      result.push({ real: sumReal, dual: sumDual });
     }
     return result;
   }
