@@ -1,5 +1,21 @@
 import * as math from "mathjs";
 export default class Helper {
+  // distance between two points
+  distance(point1, point2) {
+    return math.sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2);
+  }
+  // map
+  map(value, low1, high1, low2, high2) {
+    return low2 + ((high2 - low2) * (value - low1)) / (high1 - low1);
+  }
+  // midpoint
+  midpoint(part1, part2) {
+    return {
+      x: (part1.x + part2.x) / 2,
+      y: (part1.y + part2.y) / 2,
+      z: (part1.z + part2.z) / 2,
+    };
+  }
   // subtract two points
   diffPoint = (arr1, arr2) => {
     return [arr1[0] - arr2[0], arr1[1] - arr2[1], arr1[2] - arr2[2]];
@@ -168,15 +184,20 @@ export default class Helper {
     return { real: Q, dual: Q0 };
   }
   // for hand
-  planarDualQuaternion = (Phand, PhandTip, PhandThumb) => {
+  planarDualQuaternion = (Phand, PhandTip) => {
+    let PhandThumb = [
+      -(PhandTip[1] - Phand[1]) + Phand[0],
+      PhandTip[0] - Phand[0] + Phand[1],
+      0,
+    ];
     const u = math.subtract(PhandTip, Phand);
+    // console.log(PhandTip + " " + Phand + " " + PhandThumb);
     const v = math.subtract(PhandThumb, Phand);
     const j = math.divide(u, this.mag(u));
     const k = this.cross(j, math.divide(v, this.mag(v)));
     const i = this.cross(j, k);
-    const I = [1, 0, 0],
-      J = [0, 1, 0],
-      K = [0, 0, 1];
+    const I = [-1, 0, 0],
+      J = [0, 1, 0];
     const d1 = Phand[0],
       d2 = Phand[1];
     const H = [
@@ -200,6 +221,9 @@ export default class Helper {
   };
   // for hand
   spatialDualQuaternion = (Phand, PhandTip, PhandThumb) => {
+    Phand = this.normalize(Phand);
+    PhandTip = this.normalize(PhandTip);
+    PhandThumb = this.normalize(PhandThumb);
     const u = math.subtract(PhandTip, Phand);
     const v = math.subtract(PhandThumb, Phand);
     const j = math.divide(u, this.mag(u));
@@ -347,6 +371,24 @@ export default class Helper {
     }
     return result;
   }
+  rationalScrewJoints(position, resolution) {
+    let result = [];
+    let nJoints = position[0].joints.length;
+    for (let j = 0; j < nJoints; j++) {
+      let temp = [];
+      for (let i = 0; i < position.length - 1; i++) {
+        let jointP1 = position[i].joints[j].position;
+        let jointP2 = position[i + 1].joints[j].position;
+        for (let t = 0; t <= 1; t += resolution) {
+          let term1 = math.multiply(1 - t, jointP1);
+          let term2 = math.multiply(t, jointP2);
+          temp.push(math.add(term1, term2));
+        }
+      }
+      result.push(temp);
+    }
+    return result;
+  }
   factorial(n) {
     if (n == 1 || n == 0) return 1;
     else {
@@ -381,62 +423,147 @@ export default class Helper {
     }
     return result;
   }
-  // currently for right hand only
-  // calcKeyPositions = (position) => {
-  //   let G1, H1;
-  //   let frameBuffer = 0;
-  //   const frameCount = 20; // approx 3 seconds
-  //   let keyPosition = [];
-  //   // calculate key positions
-  //   for (let i = 0; i < position.length; i++) {
-  //     const Phand = [
-  //       position[i].Phand.x,
-  //       position[i].Phand.y,
-  //       position[i].Phand.z,
-  //     ];
-  //     const PhandTip = [
-  //       position[i].PhandTip.x,
-  //       position[i].PhandTip.y,
-  //       position[i].PhandTip.z,
-  //     ];
-  //     const PhandThumb = [
-  //       position[i].PhandThumb.x,
-  //       position[i].PhandThumb.y,
-  //       position[i].PhandThumb.z,
-  //     ];
-  //     // const spatialQ = help.spatialDualQuaternion(
-  //     //   Phand,
-  //     //   PhandTip,
-  //     //   PhandThumb
-  //     // );
-  //     const planarQ = help.planarDualQuaternion(Phand, PhandTip, PhandThumb);
-  //     const R = 10000;
-  //     const d_hat = help.normalize(Phand); // unit vector along translation vector d
-  //     const d = help.mag(Phand); // magnitude of translation vector Phand (dsit from origin to hand)
-  //     const denom = math.sqrt(4 * R ** 2 + d ** 2);
-  //     const vector = math.multiply(d_hat, d / denom); // vector part of the quaternion
-  //     const D = [(2 * R) / denom, vector[0], vector[1], vector[2]];
-  //     const Ds = [D[0], -D[1], -D[2], -D[3]]; // conjugate of D
-  //     const Q = planarQ.real;
-  //     const G2 = help.multiply(D, Q);
-  //     const H2 = help.multiply(Ds, Q);
-  //     if (G1 && H1) {
-  //       const t1 = math.subtract(G1, G2);
-  //       const t2 = math.subtract(H1, H2);
-  //       const T1 = math.dot(t1, t1);
-  //       const T2 = math.dot(t2, t2);
-  //       const delta = math.sqrt(math.add(T1, T2)); // threshold < 0.2 and dtime > 3 seconds
+  rationalBezierJoints(position, resolution) {
+    let result = [];
+    let n = position.length;
+    let nJoints = position[0].joints.length;
+    for (let j = 0; j < nJoints; j++) {
+      let temp = [];
+      for (let t = 0; t <= 1; t += resolution) {
+        let sum = [0, 0, 0];
+        for (let i = 0; i < n; i++) {
+          let jointP = position[i].joints[j].position;
+          let bern = this.binomial(n - 1, i) * t ** i * (1 - t) ** (n - 1 - i);
+          sum = math.add(sum, math.multiply(bern, jointP));
+        }
+        temp.push(sum);
+      }
+      result.push(temp);
+    }
+    return result;
+  }
+  FindSpan(n, p, u, U) {
+    // returns knot span index
+    // p: degree of curve
+    // U: knot vector
+    // n: number of control points
 
-  //       if (delta < 0.2) {
-  //         if (frameBuffer == frameCount) {
-  //           keyPosition.push(math.multiply(help.dFromDual(planarQ), -1));
-  //           frameBuffer = 0;
-  //         } else frameBuffer++;
-  //       } else frameBuffer = 0;
-  //     }
-  //     G1 = G2;
-  //     H1 = H2;
-  //     //dualPosition.push(math.multiply(help.dFromDual(planarQ), -1));
-  //   }
-  // };
+    //Special case where u = u(m)
+    if (u == U[n + 1]) return n;
+
+    //Do binary search
+    let high = n + 1;
+    let low = p;
+    let mid = math.floor((low + high) / 2);
+    while (u < U[mid] || u >= U[mid + 1]) {
+      if (u < U[mid]) high = mid;
+      else low = mid;
+      mid = math.floor((low + high) / 2);
+    }
+    return mid;
+  }
+  BasisFuns(i, u, p, U) {
+    // compute basis function
+    // N: basis function
+    // i: span index
+    let N = [];
+    N[0] = 1.0;
+    let left = [];
+    let right = [];
+    for (let j = 1; j <= p; j++) {
+      left[j] = u - U[i + 1 - j];
+      right[j] = U[i + j] - u;
+      let saved = 0.0;
+      for (let r = 0; r < j; r++) {
+        let temp = N[r] / (right[r + 1] + left[j - r]);
+        N[r] = saved + right[r + 1] * temp;
+        saved = left[j - r] * temp;
+      }
+      N[j] = saved;
+    }
+    return N;
+  }
+  bSpline(dualQuatArray, p, resolution) {
+    // p = degree
+    let result = [];
+    const n = dualQuatArray.length - 1;
+    const m = n + p + 1;
+    // define knot vector
+    let U = [];
+    let knot = 0;
+    for (let i = 0; i <= m; i++) {
+      U.push(knot);
+      if (i >= p && i < m - p) knot++;
+    }
+
+    for (let u = U[p]; u < U[U.length - 1 - p]; u += resolution) {
+      const i = this.FindSpan(n, p, u, U);
+      const N = this.BasisFuns(i, u, p, U);
+      let k = 0;
+      let sumReal = [0, 0, 0, 0],
+        sumDual = [0, 0, 0, 0];
+      if (i - p >= 0)
+        for (let I = i - p; I <= i; I++) {
+          const Nip = N[k];
+          const real = dualQuatArray[I].real,
+            dual = dualQuatArray[I].dual;
+          sumReal = math.add(sumReal, math.multiply(Nip, real));
+          sumDual = math.add(sumDual, math.multiply(Nip, dual));
+          k += 1;
+        }
+      result.push({ real: sumReal, dual: sumDual });
+    }
+    return result;
+  }
+
+  bSplineJoints(position, p, resolution) {
+    // p = degree
+    let result = [];
+    const n = position.length - 1;
+    const m = n + p + 1;
+    // define knot vector
+    let U = [];
+    let knot = 0;
+    for (let i = 0; i <= m; i++) {
+      U.push(knot);
+      if (i >= p && i < m - p) knot++;
+    }
+
+    let nJoints = position[0].joints.length;
+    for (let j = 0; j < nJoints; j++) {
+      let temp = [];
+      for (let u = U[p]; u < U[U.length - 1 - p]; u += resolution) {
+        const i = this.FindSpan(n, p, u, U);
+        const N = this.BasisFuns(i, u, p, U);
+        let k = 0;
+        let sum = [0, 0, 0];
+        if (i - p >= 0)
+          for (let I = i - p; I <= i; I++) {
+            const Nip = N[k];
+            let jointP = position[I].joints[j].position;
+            sum = math.add(sum, math.multiply(Nip, jointP));
+            console.log(I + " " + jointP + " " + sum);
+            k += 1;
+          }
+        temp.push(sum);
+      }
+      result.push(temp);
+    }
+    return result;
+  }
+  calcBiQuaternions(dualQuaternion, position) {
+    const Phand = [position.Phand.x, position.Phand.y, position.Phand.z];
+    const R = 10000;
+    const d_hat = this.normalize(Phand); // unit vector along translation vector d
+    const d = this.mag(Phand); // magnitude of translation vector Phand (dist from origin to hand)
+    const denom = math.sqrt(4 * R ** 2 + d ** 2);
+    const vector = math.multiply(d_hat, d / denom); // vector part of the quaternion
+    const D = [(2 * R) / denom, vector[0], vector[1], vector[2]];
+    const Ds = [D[0], -D[1], -D[2], -D[3]]; // conjugate of D
+    const Q = dualQuaternion.real;
+    const G = this.multiply(D, Q);
+    const H = this.multiply(Ds, Q);
+
+    return { G: G, H: H };
+  }
 }
