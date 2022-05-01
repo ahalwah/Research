@@ -1,5 +1,17 @@
 import * as math from "mathjs";
 export default class Helper {
+  //euler angles from rotation matrix
+  eulerAngles(matrix) {
+    const r32 = matrix[2][1];
+    const r33 = matrix[2][2];
+    const r31 = matrix[2][0];
+    const r21 = matrix[1][0];
+    const r11 = matrix[0][0];
+    const thetax = math.atan2(r32, r33);
+    const thetay = math.atan2(-r31, math.sqrt(r32 ** 2 + r33 * 2));
+    const thetaz = math.atan2(r21, r11);
+    return [thetax, thetay, thetaz];
+  }
   // distance between two points
   distance(point1, point2) {
     return math.sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2);
@@ -26,7 +38,7 @@ export default class Helper {
   };
   // magnitude of a vector
   mag = (v1) => {
-    return math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]);
+    return math.sqrt(v1[0] ** 2 + v1[1] ** 2 + v1[2] ** 2);
   };
   // normalize a vector
   normalize = (v) => {
@@ -67,18 +79,19 @@ export default class Helper {
     // P1 = Pchild, P2 = Pparent
 
     // Initial position of limb
-    const Vinitial = [0, -1, 0];
+    const Vinitial = [0, 1, 0];
     // Final position of limb
-    const Vfinal = this.normalize(this.diffPoint(P1, P2));
+    const Vfinal = this.normalize(math.subtract(P1, P2)); //Pchild - Pparent
 
-    // unit axis of rtation (normalized)
-    const s = this.normalize(this.cross(Vinitial, Vfinal));
+    // unit axis of rotation (normalized)
+    const s = this.normalize(math.cross(Vinitial, Vfinal));
 
     // angle of rotation in radians
-    const theta = math.acos(
-      (-1 * this.dot(Vinitial, Vfinal)) /
-        (this.mag(Vinitial) * this.mag(Vfinal))
-    );
+    // const theta = math.acos(
+    //   (-1 * this.dot(Vinitial, Vfinal)) /
+    //     (this.mag(Vinitial) * this.mag(Vfinal))
+    // );
+    const theta = math.acos(math.dot(Vinitial, Vfinal));
     //console.log((theta * 180) / math.pi);
 
     // Euler Rodrigues Parameters
@@ -107,7 +120,7 @@ export default class Helper {
     const R33 = (1 / S2) * (q42 - q12 - q22 + q32);
 
     // translation vector d
-    const d = this.normalize(this.diffPoint(P2, [0, 0, 0]));
+    const d = P2;
 
     // homogeneous matrix
     const H = [
@@ -120,20 +133,23 @@ export default class Helper {
     return H;
   }
   quaternion(P1, P2) {
-    // Initial position of limb
-    const Vinitial = [0, -1, 0];
-    // Final position of limb
-    const Vfinal = this.normalize(this.diffPoint(P1, P2));
+    // P1 = Pchild, P2 = Pparent
 
-    // unit axis of rtation (normalized)
-    const s = this.normalize(this.cross(Vinitial, Vfinal));
+    // Initial position of limb
+    const Vinitial = [0, 1, 0];
+    // Final position of limb
+    const Vfinal = this.normalize(math.subtract(P1, P2));
+
+    // unit axis of rotation (normalized)
+    const s = this.normalize(math.cross(Vinitial, Vfinal));
 
     // angle of rotation in radians
-    const theta = math.acos(
-      (-1 * this.dot(Vinitial, Vfinal)) /
-        (this.mag(Vinitial) * this.mag(Vfinal))
-    );
-    //console.log((theta * 180) / math.pi);
+    // const theta = math.acos(
+    //   (-1 * this.dot(Vinitial, Vfinal)) /
+    //     (this.mag(Vinitial) * this.mag(Vfinal))
+    // );
+    const theta = math.acos(math.dot(Vinitial, Vfinal));
+    // console.log((theta * 180) / math.pi);
 
     // Euler Rodrigues Parameters
     const q1 = s[0] * math.sin(theta / 2);
@@ -144,13 +160,14 @@ export default class Helper {
     return [q1, q2, q3, q4];
   }
   dualQuaternion(P1, P2) {
+    // P1 = Pchild, P2 = Pparent
     // quaternion
     const q = this.quaternion(P1, P2);
 
     // homogenous matrix
     const matrix = this.Homogenous_Matrix(P1, P2);
 
-    // translation vector
+    // position vector
     const d = [matrix[0][3], matrix[1][3], matrix[2][3]];
 
     // quaternion
@@ -383,6 +400,30 @@ export default class Helper {
           let term1 = math.multiply(1 - t, jointP1);
           let term2 = math.multiply(t, jointP2);
           temp.push(math.add(term1, term2));
+        }
+      }
+      result.push(temp);
+    }
+    return result;
+  }
+  rationalScrewLimbs(position, resolution) {
+    let result = [];
+    let nLimbs = position[0].limbs.length;
+    for (let j = 0; j < nLimbs; j++) {
+      let temp = [];
+      for (let i = 0; i < position.length - 1; i++) {
+        const real1 = position[i].joints[j].dualQuaternion.real,
+          dual1 = position[i].joints[j].dualQuaternion.dual;
+        const real2 = position[i + 1].joints[j].dualQuaternion.real,
+          dual2 = position[i + 1].joints[j].dualQuaternion.dual;
+        for (let t = 0; t <= 1; t += resolution) {
+          let term1 = math.multiply(1 - t, real1),
+            term2 = math.multiply(t, real2);
+          const realResult = math.add(term1, term2);
+          let term11 = math.multiply(1 - t, dual1),
+            term22 = math.multiply(t, dual2);
+          const dualResult = math.add(term11, term22);
+          temp.push({ real: realResult, dual: dualResult });
         }
       }
       result.push(temp);

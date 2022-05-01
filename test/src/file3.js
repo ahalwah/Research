@@ -13,8 +13,6 @@ import * as Drawing from "@mediapipe/drawing_utils/drawing_utils";
 import Inconsolata from "./font/Inconsolata-Black.otf";
 
 export default function File3() {
-  // checkbox(cb) right upper arm
-  let ruarmChecked = false;
   // interpolat motion once
   let interpolateOnce = false;
   // Type of Motion
@@ -45,7 +43,7 @@ export default function File3() {
       selected: false,
       index1: [11, 12],
       index2: [23, 24],
-      color: [255, 255, 0],
+      color: [128, 0, 0],
     },
     ruarm: { selected: false, index1: 12, index2: 14, color: [0, 0, 255] },
     rlarm: { selected: false, index1: 14, index2: 16, color: [0, 255, 255] },
@@ -85,6 +83,7 @@ export default function File3() {
   // append position array during recording
   let position = [],
     alternate = [];
+  let trial = [];
   let poses;
   let dualPosition = [];
   let keyPositions = [];
@@ -224,7 +223,7 @@ export default function File3() {
               const Phand = [hand[9].x, hand[9].y, hand[9].z + z];
               const PhandTip = [hand[10].x, hand[10].y, hand[10].z + z];
               const PhandThumb = [hand[5].x, hand[5].y, hand[5].z + z];
-              console.log(Phand[2] * 640);
+
               dualQ = help.spatialDualQuaternion(Phand, PhandTip, PhandThumb);
               position.push({
                 Phand: {
@@ -301,7 +300,7 @@ export default function File3() {
                 let x = results.poseLandmarks[i].x;
                 let y = results.poseLandmarks[i].y;
                 let z = results.poseLandmarks[i].z * -1;
-                console.log(z);
+
                 if (planarChecked)
                   temp.push({ position: [x, y, 0], color: joint.color });
                 if (spatialChecked)
@@ -315,34 +314,52 @@ export default function File3() {
             let temp = []; // what to track using index and color
             for (const [limbName, limbInfo] of Object.entries(limbSelected)) {
               let limb = limbInfo;
+              let P1Planar, P2Planar, P1Spatial, P2Spatial;
               if (limb.selected) {
-                let J1I = limb.index1;
-                let J2I = limb.index2;
+                if (Array.isArray(limb.index1)) {
+                  let point1 = help.midpoint(
+                    results.poseLandmarks[limb.index1[0]],
+                    results.poseLandmarks[limb.index1[1]]
+                  );
+                  let point2 = help.midpoint(
+                    results.poseLandmarks[limb.index2[0]],
+                    results.poseLandmarks[limb.index2[1]]
+                  );
+                  P1Planar = [point1.x, point1.y, 0]; // top
 
-                let P1Planar = [
-                  results.poseLandmarks[J1I].x,
-                  results.poseLandmarks[J1I].y,
-                  results.poseLandmarks[J1I].z,
-                ];
-                let P2Planar = [
-                  results.poseLandmarks[J2I].x,
-                  results.poseLandmarks[J2I].y,
-                  results.poseLandmarks[J2I].z,
-                ];
+                  P2Planar = [point2.x, point2.y, 0]; // bottom
 
-                let P1Spatial = [
-                  results.poseLandmarks[J1I].x,
-                  results.poseLandmarks[J1I].y,
-                  results.poseLandmarks[J1I].z,
-                ];
-                let P2Spatial = [
-                  results.poseLandmarks[J2I].x,
-                  results.poseLandmarks[J2I].y,
-                  results.poseLandmarks[J2I].z,
-                ];
+                  P1Spatial = [point1.x, point1.y, point1.z];
+                  P2Spatial = [point2.x, point2.y, point2.z];
+                } else {
+                  J1I = limb.index1;
+                  J2I = limb.index2;
+                  P1Planar = [
+                    results.poseLandmarks[J1I].x,
+                    results.poseLandmarks[J1I].y,
+                    0,
+                  ]; // top
 
-                let planarDual = help.dualQuaternion(P1Planar, P2Planar);
-                let spatialDual = help.dualQuaternion(P1Spatial, P2Spatial);
+                  P2Planar = [
+                    results.poseLandmarks[J2I].x,
+                    results.poseLandmarks[J2I].y,
+                    0,
+                  ]; // bottom
+
+                  P1Spatial = [
+                    results.poseLandmarks[J1I].x,
+                    results.poseLandmarks[J1I].y,
+                    results.poseLandmarks[J1I].z,
+                  ];
+                  P2Spatial = [
+                    results.poseLandmarks[J2I].x,
+                    results.poseLandmarks[J2I].y,
+                    results.poseLandmarks[J2I].z,
+                  ];
+                }
+
+                let planarDual = help.dualQuaternion(P2Planar, P1Planar); // child(bottom), parent(top)
+                let spatialDual = help.dualQuaternion(P2Spatial, P1Spatial);
 
                 if (planarChecked)
                   temp.push({ dualQuaternion: planarDual, color: limb.color });
@@ -370,8 +387,6 @@ export default function File3() {
             dualPosition.pop();
             position.pop();
           }
-
-          console.log(position);
 
           // z coordinate correction for display
           if (spatialChecked && contMotionChecked) {
@@ -476,7 +491,6 @@ export default function File3() {
     // Motion properties
     let cMotionCheckBox;
     let kMotionCheckBox;
-    let lMotionCheckBox;
     let trajectoryCheckBox;
     let coordFrameCheckBox;
     let objectCheckBox;
@@ -523,16 +537,14 @@ export default function File3() {
       cMotionCheckBox.position(350, 50);
       kMotionCheckBox = p5.createCheckbox(" Key Positions", false);
       kMotionCheckBox.position(350, 80);
-      lMotionCheckBox = p5.createCheckbox(" Limb Motion", false);
-      lMotionCheckBox.position(350, 110);
       trajectoryCheckBox = p5.createCheckbox(" Trajectory", false);
-      trajectoryCheckBox.position(350, 140);
+      trajectoryCheckBox.position(350, 110);
       coordFrameCheckBox = p5.createCheckbox(" Coordinate Frames", false);
-      coordFrameCheckBox.position(350, 170);
+      coordFrameCheckBox.position(350, 140);
       objectCheckBox = p5.createCheckbox(" Object", false);
-      objectCheckBox.position(350, 200);
+      objectCheckBox.position(350, 170);
       whiteBGCheckBox = p5.createCheckbox(" White Background", false);
-      whiteBGCheckBox.position(350, 230);
+      whiteBGCheckBox.position(350, 200);
 
       // Type Of Motion
       screwMotionCheckBox = p5.createCheckbox(" Screw", false);
@@ -626,19 +638,19 @@ export default function File3() {
       degree = parseInt(pSelector.value());
       // remaking slider per increment values
       if (
-        dualPosition.length > 0 &&
+        position.length > 0 &&
         timer == false &&
         (cMotionChecked || kMotionChecked)
       ) {
         if (densitySlider.value() <= 50) {
-          let maxInc = math.floor((dualPosition.length - 1) / 2);
+          let maxInc = math.floor((position.length - 1) / 2);
           let minInc = 1;
           let increments = [];
           let percents = [];
           for (let i = minInc; i <= maxInc; i++) increments.push(i);
           for (let i = 0; i < increments.length; i++) {
-            let num = math.floor(dualPosition.length / increments[i]);
-            percents.push(math.floor(100 * (num / dualPosition.length)));
+            let num = math.floor(position.length / increments[i]);
+            percents.push(math.floor(100 * (num / position.length)));
           }
           // find closest percent
           let chosenInc;
@@ -703,7 +715,6 @@ export default function File3() {
 
       cMotionChecked = cMotionCheckBox.checked();
       kMotionChecked = kMotionCheckBox.checked();
-
       objectChecked = objectCheckBox.checked();
       whiteBGChecked = whiteBGCheckBox.checked();
       coordFrameChecked = coordFrameCheckBox.checked();
@@ -743,6 +754,14 @@ export default function File3() {
           cMotionCheckBox.attribute("checked", true);
         }
         limbMotionCheckbox.attribute("disabled", true);
+        coordFrameCheckBox.attribute("disabled", true);
+      }
+
+      if (limbMotionChecked) {
+        if (timer) {
+          objectCheckBox.attribute("checked", true);
+          cMotionCheckBox.attribute("checked", true);
+        }
         coordFrameCheckBox.attribute("disabled", true);
       }
 
@@ -868,7 +887,7 @@ export default function File3() {
         for (let i = 0; i < dualPosition.length; i += densityIncrement) {
           keyPositions.push(dualPosition[i]);
         }
-      } else if (jointMotionChecked) {
+      } else if (jointMotionChecked || limbMotionChecked) {
         for (let i = 0; i < position.length; i += densityIncrement) {
           keyPositions.push(position[i]);
         }
@@ -951,8 +970,6 @@ export default function File3() {
               p5.vertex(x, y, z);
             }
             if (i == pointPicker.value()) {
-              // p5.strokeWeight(15);
-              // p5.point(x, y, z);
               p5.push();
               p5.translate(x, y, z);
               highlightPoint();
@@ -988,7 +1005,7 @@ export default function File3() {
         p5.endShape();
       }
     }
-    function drawLimbs(position, objectSize, resolution) {
+    function drawLimbs(position, objectSize, resolution, isKey) {
       p5.colorMode(p5.RGB, 255, 255, 255);
       let nLimbs = position[0].limbs.length;
       for (let j = 0; j < nLimbs; j++) {
@@ -1002,42 +1019,55 @@ export default function File3() {
             y = p5.map(pointPosition[1] * -1, 0, 1, -height / 2, height / 2);
           let z = (pointPosition[2] * width) / 2;
           //orientation
-          const matrix = help.rFromDual(dualQuaternions[i]);
+          const matrix = help.rFromDual(limb.dualQuaternion);
+          const angles = help.eulerAngles(matrix);
           // color values
-          let r = joint.color[0];
-          let g = joint.color[1];
-          let b = joint.color[2];
+          let r = limb.color[0];
+          let g = limb.color[1];
+          let b = limb.color[2];
           p5.stroke(r, g, b);
-          p5.push();
-          p5.applyMatrix(
-            matrix[0][0],
-            matrix[0][1],
-            matrix[0][2],
-            0,
-            matrix[1][0],
-            matrix[1][1],
-            matrix[1][2],
-            0,
-            matrix[2][0],
-            matrix[2][1],
-            matrix[2][2],
-            0,
-            x,
-            y,
-            z,
-            1
-          );
-          p5.translate(x, y, z);
-          if (coordFrameChecked) {
-            p5.scale(objectSize / 100);
-            drawFrame(frameSize);
+          if (isKey) {
+            p5.push();
+            p5.strokeWeight(1);
+            p5.translate(x, y, z);
+            p5.rotateX(angles[0]);
+            p5.rotateY(angles[1]);
+            p5.rotateZ(angles[2]);
+            p5.translate(0, 80 / 2, 0);
+            p5.cylinder(2, 80);
+            p5.pop();
+          } else {
+            if (objectChecked) {
+              p5.push();
+              p5.strokeWeight(1);
+              p5.translate(x, y, z);
+              p5.rotateX(angles[0]);
+              p5.rotateY(angles[1]);
+              p5.rotateZ(angles[2]);
+              p5.translate(0, (80 / 2) * (objectSize / 100), 0);
+              p5.scale(objectSize / 100);
+              p5.cylinder(2, 80);
+              p5.pop();
+            }
+            if (i == pointPicker.value()) {
+              p5.push();
+              p5.strokeWeight(1);
+              p5.stroke(0, 128, 0);
+              p5.translate(x, y, z);
+              p5.rotateX(angles[0]);
+              p5.rotateY(angles[1]);
+              p5.rotateZ(angles[2]);
+              p5.translate(0, (80 / 2) * (objectSize / 100), 0);
+              p5.scale(objectSize / 100);
+              p5.cylinder(2, 80);
+              p5.pop();
+              selectedPoint = position[i];
+            }
+            if (trajectoryChecked) {
+              p5.strokeWeight(3); // 3
+              p5.vertex(x, y, z);
+            }
           }
-          p5.translate(0, 40, 0); //translate by half height
-          if (objectChecked) {
-            p5.scale(objectSize / 100);
-            p5.cylinder(5, 80);
-          }
-          p5.pop();
         }
         p5.endShape();
       }
@@ -1171,7 +1201,6 @@ export default function File3() {
       }
       // allows for rotation of view using mouse
       p5.orbitControl();
-      drawFrame(40);
       if (cMotionChecked) {
         if (dualPosition.length > 0) {
           drawFromQuaternions(
@@ -1188,6 +1217,8 @@ export default function File3() {
         if (keyPositions.length > 0) {
           if (jointMotionChecked) {
             drawJoints(keyPositions, 100, 1, true);
+          } else if (limbMotionChecked) {
+            drawLimbs(keyPositions, 100, 1, true);
           } else {
             drawKeyPositions(keyPositions);
           }
@@ -1199,7 +1230,7 @@ export default function File3() {
       }
       if (limbMotionChecked) {
         if (position.length > 0 && cMotionChecked) {
-          drawLimbs(position, size, densityIncrement);
+          drawLimbs(position, size, densityIncrement, false);
         }
       }
       // type of motion requested (either key positions or continuous motion)
@@ -1224,15 +1255,23 @@ export default function File3() {
         if (points.length > 0 && jointMotionChecked) {
           if (screwMotionChecked) {
             screw = help.rationalScrewJoints(points, 0.01);
-            console.log(screw);
           } else screw = [];
           if (bezierMotionChecked) {
             bezier = help.rationalBezierJoints(points, 0.01);
-            console.log(bezier);
           } else bezier = [];
           if (bSplineMotionChecked) {
             bSpline = help.bSplineJoints(points, degree, 0.01);
-            console.log(bSpline);
+          } else bSpline = [];
+        }
+        if (points.length > 0 && limbMotionChecked) {
+          if (screwMotionChecked) {
+            screw = help.rationalScrewLimbs(points, 0.01);
+          } else screw = [];
+          if (bezierMotionChecked) {
+            bezier = [];
+          } else bezier = [];
+          if (bSplineMotionChecked) {
+            bSpline = [];
           } else bSpline = [];
         }
       }
@@ -1250,6 +1289,7 @@ export default function File3() {
           );
         if (jointMotionChecked)
           drawJointsMotion(screw, size, densityIncrement, [255, 215, 0]);
+        if (limbMotionChecked) drawLimbs(screw, size, densityIncrement, false);
       }
       if (bezier.length > 0) {
         if (contMotionChecked || keyPosChecked)
