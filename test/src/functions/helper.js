@@ -412,10 +412,10 @@ export default class Helper {
     for (let j = 0; j < nLimbs; j++) {
       let temp = [];
       for (let i = 0; i < position.length - 1; i++) {
-        const real1 = position[i].joints[j].dualQuaternion.real,
-          dual1 = position[i].joints[j].dualQuaternion.dual;
-        const real2 = position[i + 1].joints[j].dualQuaternion.real,
-          dual2 = position[i + 1].joints[j].dualQuaternion.dual;
+        const real1 = position[i].limbs[j].dualQuaternion.real,
+          dual1 = position[i].limbs[j].dualQuaternion.dual;
+        const real2 = position[i + 1].limbs[j].dualQuaternion.real,
+          dual2 = position[i + 1].limbs[j].dualQuaternion.dual;
         for (let t = 0; t <= 1; t += resolution) {
           let term1 = math.multiply(1 - t, real1),
             term2 = math.multiply(t, real2);
@@ -478,6 +478,28 @@ export default class Helper {
           sum = math.add(sum, math.multiply(bern, jointP));
         }
         temp.push(sum);
+      }
+      result.push(temp);
+    }
+    return result;
+  }
+  rationalBezierLimbs(position, resolution) {
+    let result = [];
+    let n = position.length;
+    let nLimbs = position[0].limbs.length;
+    for (let j = 0; j < nLimbs; j++) {
+      let temp = [];
+      for (let t = 0; t <= 1; t += resolution) {
+        let sumReal = [0, 0, 0, 0],
+          sumDual = [0, 0, 0, 0];
+        for (let i = 0; i < n; i++) {
+          const real = position[i].limbs[j].dualQuaternion.real,
+            dual = position[i].limbs[j].dualQuaternion.dual;
+          let bern = this.binomial(n - 1, i) * t ** i * (1 - t) ** (n - 1 - i);
+          sumReal = math.add(sumReal, math.multiply(bern, real));
+          sumDual = math.add(sumDual, math.multiply(bern, dual));
+        }
+        temp.push({ real: sumReal, dual: sumDual });
       }
       result.push(temp);
     }
@@ -556,7 +578,44 @@ export default class Helper {
     }
     return result;
   }
+  bSplineLimbs(position, p, resolution) {
+    console.log(position);
+    // p = degree
+    let result = [];
+    const n = position.length - 1;
+    const m = n + p + 1;
+    // define knot vector
+    let U = [];
+    let knot = 0;
+    for (let i = 0; i <= m; i++) {
+      U.push(knot);
+      if (i >= p && i < m - p) knot++;
+    }
 
+    let nLimbs = position[0].limbs.length;
+    for (let j = 0; j < nLimbs; j++) {
+      let temp = [];
+      for (let u = U[p]; u < U[U.length - 1 - p]; u += resolution) {
+        const i = this.FindSpan(n, p, u, U);
+        const N = this.BasisFuns(i, u, p, U);
+        let k = 0;
+        let sumReal = [0, 0, 0, 0],
+          sumDual = [0, 0, 0, 0];
+        if (i - p >= 0)
+          for (let I = i - p; I <= i; I++) {
+            const Nip = N[k];
+            let real = position[I].limbs[j].dualQuaternion.real;
+            let dual = position[I].limbs[j].dualQuaternion.dual;
+            sumReal = math.add(sumReal, math.multiply(Nip, real));
+            sumDual = math.add(sumDual, math.multiply(Nip, dual));
+            k += 1;
+          }
+        temp.push({ real: sumReal, dual: sumDual });
+      }
+      result.push(temp);
+    }
+    return result;
+  }
   bSplineJoints(position, p, resolution) {
     // p = degree
     let result = [];
@@ -583,7 +642,6 @@ export default class Helper {
             const Nip = N[k];
             let jointP = position[I].joints[j].position;
             sum = math.add(sum, math.multiply(Nip, jointP));
-            console.log(I + " " + jointP + " " + sum);
             k += 1;
           }
         temp.push(sum);

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect } from "react";
 import { ReactP5Wrapper } from "react-p5-wrapper";
 import * as math from "mathjs";
 import teapotURL from "./assets/teapot.obj";
@@ -8,8 +8,7 @@ import ExportCSV from "./functions/exportToCSV";
 import * as Holistic from "@mediapipe/holistic/holistic";
 // mediapipe camrea tools
 import * as Camera from "@mediapipe/camera_utils/camera_utils";
-// mediapipe drawing tools
-import * as Drawing from "@mediapipe/drawing_utils/drawing_utils";
+// p5.js font
 import Inconsolata from "./font/Inconsolata-Black.otf";
 
 export default function File3() {
@@ -83,7 +82,6 @@ export default function File3() {
   // append position array during recording
   let position = [],
     alternate = [];
-  let trial = [];
   let poses;
   let dualPosition = [];
   let keyPositions = [];
@@ -94,6 +92,11 @@ export default function File3() {
   let dualPositionTemp = [];
   const frameCount = 21; // approx 3 seconds
   let frameBuffer = 0;
+
+  // FPS
+  let FPS = 0;
+  // general settings
+  let resetCanvas = false;
 
   // React DOM references
   const output_canvas = useRef(null);
@@ -332,8 +335,8 @@ export default function File3() {
                   P1Spatial = [point1.x, point1.y, point1.z];
                   P2Spatial = [point2.x, point2.y, point2.z];
                 } else {
-                  J1I = limb.index1;
-                  J2I = limb.index2;
+                  let J1I = limb.index1;
+                  let J2I = limb.index2;
                   P1Planar = [
                     results.poseLandmarks[J1I].x,
                     results.poseLandmarks[J1I].y,
@@ -430,7 +433,7 @@ export default function File3() {
     const canvasElement = output_canvas.current;
     const canvasCtx = canvasElement.getContext("2d");
     // Calc FPS
-    let FPS = math.floor(1000 / (time - previousFrameTime));
+    FPS = math.floor(1000 / (time - previousFrameTime));
     previousFrameTime = time;
 
     if (results.poseLandmarks) poses = results.poseLandmarks;
@@ -500,17 +503,45 @@ export default function File3() {
     let densitySlider;
     let sizeSlider;
 
+    // general settings
+    let resetKey, resetContinuous, resetPosition;
     // button for exporting data as csv
-    let exportButton;
+    let exportPosition, exportCaptured, loadFile;
 
     p5.setup = () => {
       p5.createCanvas(width, height);
       p5.textSize(15);
       p5.textStyle(p5.BOLD);
-      // export button
-      // exportButton = p5.createButton("Export to CSV");
-      //exportButton.position(400, 520);
-      // exportButton.mousePressed(Export);
+      // buttons
+      resetKey = p5.createButton("Reset Key Position");
+      resetKey.position(355, 280);
+      resetKey.size(200, 25);
+      resetKey.mousePressed();
+
+      resetContinuous = p5.createButton("Reset Continuous Motion");
+      resetContinuous.position(355, 310);
+      resetContinuous.size(200, 25);
+      resetContinuous.mousePressed();
+
+      resetPosition = p5.createButton("Reset To Original Position");
+      resetPosition.position(355, 340);
+      resetPosition.size(200, 25);
+      resetPosition.mousePressed(canvasReset);
+
+      exportPosition = p5.createButton("Export Positions");
+      exportPosition.position(355, 370);
+      exportPosition.size(200, 25);
+      exportPosition.mousePressed();
+
+      exportCaptured = p5.createButton("Export Captured Motion");
+      exportCaptured.position(355, 400);
+      exportCaptured.size(200, 25);
+      exportCaptured.mousePressed(); //Export
+
+      loadFile = p5.createButton("Load File");
+      loadFile.position(355, 430);
+      loadFile.size(200, 25);
+      loadFile.mousePressed();
 
       // type of capture
       contMotionCheckBox = p5.createCheckbox(
@@ -548,32 +579,32 @@ export default function File3() {
 
       // Type Of Motion
       screwMotionCheckBox = p5.createCheckbox(" Screw", false);
-      screwMotionCheckBox.position(20, 260);
+      screwMotionCheckBox.position(20, 240);
       screwMotionCheckBox.changed(interpOnce);
       bezierMotionCheckbox = p5.createCheckbox(" Bezier", false);
-      bezierMotionCheckbox.position(20, 290);
+      bezierMotionCheckbox.position(20, 270);
       bezierMotionCheckbox.changed(interpOnce);
       splineMotionCheckbox = p5.createCheckbox(
         " B-Spline Approximation",
         false
       );
-      splineMotionCheckbox.position(20, 320);
+      splineMotionCheckbox.position(20, 300);
       splineMotionCheckbox.changed(interpOnce);
       pSelector = p5.createSelect().id("degree");
-      pSelector.position(220, 320);
+      pSelector.position(220, 300);
       pSelector.changed(interpOnce);
       splineInterpCheckbox = p5.createCheckbox(
         " B-Spline Interpolation",
         false
       );
-      splineInterpCheckbox.position(20, 350);
+      splineInterpCheckbox.position(20, 330);
 
       // density and object size
       densitySlider = p5.createSlider(1, 100, 100, 1);
-      densitySlider.position(350, 310);
+      densitySlider.position(20, 390);
       densitySlider.style("width", "150px");
       sizeSlider = p5.createSlider(1, 100, 50, 1);
-      sizeSlider.position(350, 360);
+      sizeSlider.position(20, 440);
       sizeSlider.style("width", "150px");
     };
     function interpOnce() {
@@ -587,14 +618,18 @@ export default function File3() {
         }
       }
     }
+    function canvasReset() {
+      resetCanvas = true;
+    }
     p5.draw = () => {
       p5.background(220);
       p5.text("Type of Capture", 20, 30);
-      p5.text("Type of Motion", 20, 240);
+      p5.text("Type of Motion", 20, 220);
       p5.text("Motion Properties", 350, 30);
-      p5.text("Density", 350, 300);
-      p5.text("Object Size", 350, 350);
-      p5.text(sizeSlider.value().toString() + "%", 510, 375);
+      p5.text("General Settings", 350, 260);
+      p5.text("Density", 20, 380);
+      p5.text("Object Size", 20, 430);
+      p5.text(sizeSlider.value().toString() + "%", 190, 455);
 
       if (keyPositionsSelected) {
         keyPositionsSelected = false;
@@ -663,9 +698,9 @@ export default function File3() {
             }
           }
           densityIncrement = chosenInc;
-          p5.text(densitySlider.value().toString() + "%", 510, 325);
+          p5.text(densitySlider.value().toString() + "%", 190, 405);
         } else {
-          p5.text(densitySlider.value().toString() + "%", 510, 325);
+          p5.text(densitySlider.value().toString() + "%", 190, 405);
           densityIncrement = 1;
         }
       } else if (position.length > 0 && timer == false && jointMotionChecked) {
@@ -690,13 +725,13 @@ export default function File3() {
             }
           }
           densityIncrement = chosenInc;
-          p5.text(densitySlider.value().toString() + "%", 510, 325);
+          p5.text(densitySlider.value().toString() + "%", 190, 405);
         } else {
-          p5.text(densitySlider.value().toString() + "%", 510, 325);
+          p5.text(densitySlider.value().toString() + "%", 190, 405);
           densityIncrement = 1;
         }
       } else {
-        p5.text(densitySlider.value().toString() + "%", 510, 325);
+        p5.text(densitySlider.value().toString() + "%", 190, 405);
       }
       // size
       size = sizeSlider.value();
@@ -807,9 +842,40 @@ export default function File3() {
           planarMotionCheckBox.removeAttribute("disabled");
         if (spatialMotionCheckBox.checked())
           spatialMotionCheckBox.removeAttribute("disabled");
-        if (planarMotionCheckBox.checked() || spatialMotionCheckBox.checked())
-          startRecording.removeAttribute("disabled");
-        // enable recording checkbox
+        if (planarMotionCheckBox.checked() || spatialMotionCheckBox.checked()) {
+          if (jointMotionChecked) {
+            let enableButton = false;
+            for (const [jointName, jointInfo] of Object.entries(
+              jointSelected
+            )) {
+              let joint = jointInfo;
+              if (joint.selected) {
+                enableButton = true;
+                break;
+              }
+            }
+            if (enableButton) startRecording.removeAttribute("disabled");
+            else {
+              checked = false;
+              startRecording.attribute("disabled", "");
+            }
+          } else if (limbMotionChecked) {
+            let enableButton = false;
+            for (const [limbName, limbInfo] of Object.entries(limbSelected)) {
+              let limb = limbInfo;
+              if (limb.selected) {
+                enableButton = true;
+                break;
+              }
+            }
+            if (enableButton) startRecording.removeAttribute("disabled");
+            else {
+              checked = false;
+              startRecording.attribute("disabled", "");
+            }
+          } else startRecording.removeAttribute("disabled");
+        }
+        // disable recording checkbox
         else {
           checked = false;
           startRecording.attribute("disabled", ""); // disable recording checkbox
@@ -909,7 +975,7 @@ export default function File3() {
         position.splice(index, 1);
         alternate.splice(index, 1);
       }
-      if (jointMotionChecked) {
+      if (jointMotionChecked || limbMotionChecked) {
         // remove position from position array
         position.splice(index, 1);
       }
@@ -1005,6 +1071,42 @@ export default function File3() {
         p5.endShape();
       }
     }
+    function drawLimbsMotion(position, objectSize, resolution, color) {
+      p5.colorMode(p5.RGB, 255, 255, 255);
+      for (let i = 0; i < position.length; i++) {
+        p5.noFill();
+        p5.beginShape();
+        for (let j = 0; j < position[i].length; j += resolution) {
+          //position
+          const pointPosition = help.dFromDual(position[i][j]);
+          const x = p5.map(pointPosition[0] * -1, 0, 1, -width / 2, width / 2),
+            y = p5.map(pointPosition[1] * -1, 0, 1, -height / 2, height / 2);
+          let z = (pointPosition[2] * width) / 2;
+          //orientation
+          const matrix = help.rFromDual(position[i][j]);
+          const angles = help.eulerAngles(matrix);
+          // color
+          p5.stroke(color[0], color[1], color[2]);
+          if (objectChecked) {
+            p5.push();
+            p5.strokeWeight(1);
+            p5.translate(x, y, z);
+            p5.rotateX(angles[0]);
+            p5.rotateY(angles[1]);
+            p5.rotateZ(angles[2]);
+            p5.translate(0, (100 / 2) * (objectSize / 100), 0);
+            p5.scale(objectSize / 100);
+            p5.cylinder(2, 100);
+            p5.pop();
+          }
+          if (trajectoryChecked) {
+            p5.strokeWeight(3);
+            p5.vertex(x, y, z);
+          }
+        }
+        p5.endShape();
+      }
+    }
     function drawLimbs(position, objectSize, resolution, isKey) {
       p5.colorMode(p5.RGB, 255, 255, 255);
       let nLimbs = position[0].limbs.length;
@@ -1028,13 +1130,14 @@ export default function File3() {
           p5.stroke(r, g, b);
           if (isKey) {
             p5.push();
-            p5.strokeWeight(1);
+            p5.normalMaterial();
             p5.translate(x, y, z);
             p5.rotateX(angles[0]);
             p5.rotateY(angles[1]);
             p5.rotateZ(angles[2]);
-            p5.translate(0, 80 / 2, 0);
-            p5.cylinder(2, 80);
+            p5.translate(0, (100 / 2) * (objectSize / 100), 0);
+            p5.scale(objectSize / 100);
+            p5.cylinder(4, 100);
             p5.pop();
           } else {
             if (objectChecked) {
@@ -1044,9 +1147,9 @@ export default function File3() {
               p5.rotateX(angles[0]);
               p5.rotateY(angles[1]);
               p5.rotateZ(angles[2]);
-              p5.translate(0, (80 / 2) * (objectSize / 100), 0);
+              p5.translate(0, (100 / 2) * (objectSize / 100), 0);
               p5.scale(objectSize / 100);
-              p5.cylinder(2, 80);
+              p5.cylinder(2, 100);
               p5.pop();
             }
             if (i == pointPicker.value()) {
@@ -1057,9 +1160,9 @@ export default function File3() {
               p5.rotateX(angles[0]);
               p5.rotateY(angles[1]);
               p5.rotateZ(angles[2]);
-              p5.translate(0, (80 / 2) * (objectSize / 100), 0);
+              p5.translate(0, (100 / 2) * (objectSize / 100), 0);
               p5.scale(objectSize / 100);
-              p5.cylinder(2, 80);
+              p5.cylinder(2, 100);
               p5.pop();
               selectedPoint = position[i];
             }
@@ -1183,12 +1286,17 @@ export default function File3() {
         p5.pop();
       }
     }
-    p5.doubleClicked = () => {
-      if (spatialChecked) p5.camera(0, 0, 1000);
-      else p5.camera();
-    };
     p5.draw = () => {
       p5.clear();
+      // reset canvas
+      if (resetCanvas) {
+        if (spatialChecked) p5.camera(0, 0, 1000);
+        else {
+          p5.camera();
+          console.log("reset");
+        }
+        resetCanvas = false;
+      }
       if (timer && spatialChecked) p5.camera(0, 0, 1000);
       if (whiteBGChecked) p5.background("white");
       else p5.background("black");
@@ -1218,7 +1326,7 @@ export default function File3() {
           if (jointMotionChecked) {
             drawJoints(keyPositions, 100, 1, true);
           } else if (limbMotionChecked) {
-            drawLimbs(keyPositions, 100, 1, true);
+            drawLimbs(keyPositions, size, 1, true);
           } else {
             drawKeyPositions(keyPositions);
           }
@@ -1236,9 +1344,6 @@ export default function File3() {
       // type of motion requested (either key positions or continuous motion)
       if (interpolateOnce) {
         interpolateOnce = false;
-        // let points = [];
-        // if (kMotionChecked) points = keyPositions;
-        // if (cMotionChecked) points = keyPositions;
         let points = keyPositions;
         if (points.length > 0 && (contMotionChecked || keyPosChecked)) {
           // screw
@@ -1268,10 +1373,10 @@ export default function File3() {
             screw = help.rationalScrewLimbs(points, 0.01);
           } else screw = [];
           if (bezierMotionChecked) {
-            bezier = [];
+            bezier = help.rationalBezierLimbs(points, 0.01);
           } else bezier = [];
           if (bSplineMotionChecked) {
-            bSpline = [];
+            bSpline = help.bSplineLimbs(points, degree, 0.01);
           } else bSpline = [];
         }
       }
@@ -1289,7 +1394,8 @@ export default function File3() {
           );
         if (jointMotionChecked)
           drawJointsMotion(screw, size, densityIncrement, [255, 215, 0]);
-        if (limbMotionChecked) drawLimbs(screw, size, densityIncrement, false);
+        if (limbMotionChecked)
+          drawLimbsMotion(screw, size, densityIncrement, [255, 215, 0]);
       }
       if (bezier.length > 0) {
         if (contMotionChecked || keyPosChecked)
@@ -1303,6 +1409,8 @@ export default function File3() {
           );
         if (jointMotionChecked)
           drawJointsMotion(bezier, size, densityIncrement, [255, 0, 0]);
+        if (limbMotionChecked)
+          drawLimbsMotion(bezier, size, densityIncrement, [255, 0, 0]);
       }
       if (bSpline.length > 0) {
         if (contMotionChecked || keyPosChecked)
@@ -1316,19 +1424,29 @@ export default function File3() {
           );
         if (jointMotionChecked)
           drawJointsMotion(bSpline, size, densityIncrement, [0, 255, 0]);
+        if (limbMotionChecked)
+          drawLimbsMotion(bSpline, size, densityIncrement, [0, 255, 0]);
       }
     };
   }
   function JointInterface(p5) {
     let w = 640, //-320
       h = 480; //-240
+    let myFont;
+    p5.preload = () => {
+      myFont = p5.loadFont(Inconsolata);
+    };
     p5.setup = () => {
       p5.createCanvas(w, h, p5.WEBGL);
+      p5.textFont(myFont);
+      p5.textSize(150);
     };
     p5.draw = () => {
       p5.clear();
       p5.background("black");
       if (timer) {
+        p5.fill("red");
+        p5.text(FPS, -700, -400);
         p5.camera(0, 0, 1000);
         if (poses) {
           let connections1 = [
@@ -1478,7 +1596,6 @@ export default function File3() {
         p5.stroke(joint.color[0], joint.color[1], joint.color[2]);
       else p5.stroke(255, 255, 255);
       p5.strokeWeight(2);
-      //p5.circle(x, y, 20);
       p5.push();
       p5.translate(x, y);
       p5.sphere(10);
