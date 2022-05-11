@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { ReactP5Wrapper } from "react-p5-wrapper";
 import * as math from "mathjs";
 import teapotURL from "./assets/teapot.obj";
+import wristURL from "./assets/wrist object.obj";
 import greenColor from "./assets/green.png";
 import Helper from "./functions/helper";
 import ExportCSV from "./functions/exportToCSV";
@@ -37,37 +38,148 @@ export default function File3() {
   let keyPositionsSelected = false;
   // limb motion cb
   let limbMotionChecked = false;
+  let limbs = [];
   let limbSelected = {
     spine: {
       selected: false,
       index1: [11, 12],
       index2: [23, 24],
       color: [128, 0, 0],
+      bodypart: "spine",
     },
-    ruarm: { selected: false, index1: 12, index2: 14, color: [0, 0, 255] },
-    rlarm: { selected: false, index1: 14, index2: 16, color: [0, 255, 255] },
-    luarm: { selected: false, index1: 11, index2: 13, color: [139, 0, 139] },
-    llarm: { selected: false, index1: 13, index2: 15, color: [255, 0, 255] },
-    ruleg: { selected: false, index1: 24, index2: 26, color: [139, 69, 19] },
-    rlleg: { selected: false, index1: 26, index2: 28, color: [244, 164, 96] },
-    luleg: { selected: false, index1: 23, index2: 25, color: [255, 69, 0] },
-    llleg: { selected: false, index1: 25, index2: 27, color: [240, 230, 140] },
+    ruarm: {
+      selected: false,
+      index1: 12,
+      index2: 14,
+      color: [0, 0, 255],
+      bodypart: "right upper arm",
+    },
+    rlarm: {
+      selected: false,
+      index1: 14,
+      index2: 16,
+      color: [0, 255, 255],
+      bodypart: "right lower arm",
+    },
+    luarm: {
+      selected: false,
+      index1: 11,
+      index2: 13,
+      color: [139, 0, 139],
+      bodypart: "left upper arm",
+    },
+    llarm: {
+      selected: false,
+      index1: 13,
+      index2: 15,
+      color: [255, 0, 255],
+      bodypart: "left lower arm",
+    },
+    ruleg: {
+      selected: false,
+      index1: 24,
+      index2: 26,
+      color: [139, 69, 19],
+      bodypart: "right upper leg",
+    },
+    rlleg: {
+      selected: false,
+      index1: 26,
+      index2: 28,
+      color: [244, 164, 96],
+      bodypart: "right lower leg",
+    },
+    luleg: {
+      selected: false,
+      index1: 23,
+      index2: 25,
+      color: [255, 69, 0],
+      bodypart: "left upper leg",
+    },
+    llleg: {
+      selected: false,
+      index1: 25,
+      index2: 27,
+      color: [240, 230, 140],
+      bodypart: "left lower leg",
+    },
   };
   // joint motion cb
   let jointMotionChecked = false;
+  let joints = [];
   let jointSelected = {
-    rshoulder: { selected: false, index: 12, color: [255, 140, 0] },
-    relbow: { selected: false, index: 14, color: [128, 128, 0] },
-    rwrist: { selected: false, index: 16, color: [255, 20, 147] },
-    lshoulder: { selected: false, index: 11, color: [85, 107, 47] },
-    lelbow: { selected: false, index: 13, color: [0, 255, 0] },
-    lwrist: { selected: false, index: 15, color: [0, 250, 154] },
-    rhip: { selected: false, index: 24, color: [0, 0, 255] },
-    rknee: { selected: false, index: 26, color: [138, 43, 226] },
-    rankle: { selected: false, index: 28, color: [106, 90, 205] },
-    lhip: { selected: false, index: 23, color: [255, 0, 0] },
-    lknee: { selected: false, index: 25, color: [244, 164, 96] },
-    lankle: { selected: false, index: 27, color: [112, 128, 144] },
+    rshoulder: {
+      selected: false,
+      index: 12,
+      color: [255, 140, 0],
+      bodypart: "right shoulder",
+    },
+    relbow: {
+      selected: false,
+      index: 14,
+      color: [128, 128, 0],
+      bodypart: "right elbow",
+    },
+    rwrist: {
+      selected: false,
+      index: 16,
+      color: [255, 20, 147],
+      bodypart: "right wrist",
+    },
+    lshoulder: {
+      selected: false,
+      index: 11,
+      color: [85, 107, 47],
+      bodypart: "left shoulder",
+    },
+    lelbow: {
+      selected: false,
+      index: 13,
+      color: [0, 255, 0],
+      bodypart: "left elbow",
+    },
+    lwrist: {
+      selected: false,
+      index: 15,
+      color: [0, 250, 154],
+      bodypart: "left wrist",
+    },
+    rhip: {
+      selected: false,
+      index: 24,
+      color: [0, 0, 255],
+      bodypart: "right hip",
+    },
+    rknee: {
+      selected: false,
+      index: 26,
+      color: [138, 43, 226],
+      bodypart: "right knee",
+    },
+    rankle: {
+      selected: false,
+      index: 28,
+      color: [106, 90, 205],
+      bodypart: "right ankle",
+    },
+    lhip: {
+      selected: false,
+      index: 23,
+      color: [255, 0, 0],
+      bodypart: "left hip",
+    },
+    lknee: {
+      selected: false,
+      index: 25,
+      color: [244, 164, 96],
+      bodypart: "left knee",
+    },
+    lankle: {
+      selected: false,
+      index: 27,
+      color: [112, 128, 144],
+      bodypart: "left ankle",
+    },
   };
 
   // Motion Properties
@@ -81,22 +193,32 @@ export default function File3() {
   const help = new Helper();
   // append position array during recording
   let position = [],
-    alternate = [];
+    originalPosition = [];
   let poses;
-  let dualPosition = [];
+  let dualPosition = [],
+    originaldualPosition = [];
   let keyPositions = [];
-  let csvData = [];
+  // cont motion 0, key positions 1, joint cont 2, joint key 3, limb cont 4, limb key 5
+  let fileRead = [false, false, false, false, false, false];
+  let recordedMotion = "";
+  let maxZ = 0,
+    prevZ = 0;
   let previousFrameTime = 0;
 
   // key position algorithm variables
   let dualPositionTemp = [];
-  const frameCount = 21; // approx 3 seconds
+  let frameCount = 0;
   let frameBuffer = 0;
 
   // FPS
   let FPS = 0;
   // general settings
   let resetCanvas = false;
+
+  let mediaRecorder;
+  let recordedChunks;
+  let oneRun = false;
+  let recordingEnded = false;
 
   // React DOM references
   const output_canvas = useRef(null);
@@ -197,20 +319,31 @@ export default function File3() {
           // resets
           inCircleCounter = 0;
           inCircleCounter2 = 0;
+
+          position = [];
+          originalPosition = [];
+
           dualPosition = [];
+          originaldualPosition = [];
+
           keyPositions = [];
           dualPositionTemp = [];
           frameBuffer = 0;
           // start count
           startTime = new Date();
           timer = true;
-
-          position = [];
-          alternate = [];
+          oneRun = true;
         }
 
         // do the recording
         if (timer == true) {
+          maxZ = 0;
+          prevZ = 0;
+          fileRead = fileRead.map((x) => false);
+          if (contMotionChecked) recordedMotion = "continuous";
+          if (keyPosChecked) recordedMotion = "key";
+          if (limbMotionChecked) recordedMotion = "limb";
+          if (jointMotionChecked) recordedMotion = "joint";
           // calculate time difference
           currentTime = new Date();
           let timeDiff = currentTime - startTime; //in ms
@@ -226,6 +359,8 @@ export default function File3() {
               const Phand = [hand[9].x, hand[9].y, hand[9].z + z];
               const PhandTip = [hand[10].x, hand[10].y, hand[10].z + z];
               const PhandThumb = [hand[5].x, hand[5].y, hand[5].z + z];
+
+              if (Phand[2] > prevZ) maxZ = Phand[2];
 
               dualQ = help.spatialDualQuaternion(Phand, PhandTip, PhandThumb);
               position.push({
@@ -246,6 +381,8 @@ export default function File3() {
                 },
                 time: seconds,
               });
+
+              prevZ = Phand[2];
             }
             if (planarChecked) {
               const Phand = [hand[0].x, hand[0].y, hand[0].z + z];
@@ -283,7 +420,8 @@ export default function File3() {
                 const delta = math.sqrt(math.add(T1, T2));
                 // condition
                 if (delta < 0.3) {
-                  if (frameBuffer == frameCount) {
+                  if (frameBuffer === frameCount) {
+                    // frameCount = FPS * 3 sec
                     keyPositions.push(dualQ);
                     frameBuffer = 0;
                   } else frameBuffer++;
@@ -299,6 +437,9 @@ export default function File3() {
             )) {
               let joint = jointInfo;
               if (joint.selected) {
+                if (joint.bodypart in joints == false) {
+                  joints.push(joint.bodypart);
+                }
                 let i = joint.index;
                 let x = results.poseLandmarks[i].x;
                 let y = results.poseLandmarks[i].y;
@@ -306,8 +447,11 @@ export default function File3() {
 
                 if (planarChecked)
                   temp.push({ position: [x, y, 0], color: joint.color });
-                if (spatialChecked)
+                if (spatialChecked) {
                   temp.push({ position: [x, y, z], color: joint.color });
+                  if (z > prevZ) maxZ = z;
+                  prevZ = z;
+                }
               }
             }
             position.push({ joints: temp, time: seconds });
@@ -319,6 +463,9 @@ export default function File3() {
               let limb = limbInfo;
               let P1Planar, P2Planar, P1Spatial, P2Spatial;
               if (limb.selected) {
+                if (limb.bodypart in limbs == false) {
+                  limbs.push(limb.bodypart);
+                }
                 if (Array.isArray(limb.index1)) {
                   let point1 = help.midpoint(
                     results.poseLandmarks[limb.index1[0]],
@@ -366,8 +513,11 @@ export default function File3() {
 
                 if (planarChecked)
                   temp.push({ dualQuaternion: planarDual, color: limb.color });
-                if (spatialChecked)
+                if (spatialChecked) {
                   temp.push({ dualQuaternion: spatialDual, color: limb.color });
+                  if (P1Spatial[2] > prevZ) maxZ = P1Spatial[2];
+                  prevZ = P1Spatial[2];
+                }
               }
             }
             position.push({ limbs: temp, time: seconds });
@@ -376,6 +526,7 @@ export default function File3() {
 
         // end recording
         if (timer == true && inCircleCounter2 > 5) {
+          recordingEnded = true;
           // reset variables
           timer = false;
           startTime = null;
@@ -391,40 +542,8 @@ export default function File3() {
             position.pop();
           }
 
-          // z coordinate correction for display
-          if (spatialChecked && contMotionChecked) {
-            alternate = [];
-            let hand = position.map((pos) => pos.Phand.z);
-            let absMin = math.min(hand);
-            let absMax = math.max(hand);
-            // for (let i = 0; i < position.length; i++) {
-            //   alternate.push(
-            //     help.map(
-            //       position[i].Phand.z,
-            //       absMax,
-            //       absMin,
-            //       0,
-            //       absMax - absMin
-            //     )
-            //   );
-            // }
-          }
-
-          // iterate through dual quaternion and fill csv data to test functionality
-          for (let i = 0; i < dualPosition.length; i++) {
-            const real = dualPosition[i].real,
-              dual = dualPosition[i].dual;
-            csvData.push({
-              Q1: real[0],
-              Q2: real[1],
-              Q3: real[2],
-              Q4: real[3],
-              Q01: dual[0],
-              Q02: dual[1],
-              Q03: dual[2],
-              Q03: dual[3],
-            });
-          }
+          originaldualPosition = dualPosition;
+          originalPosition = position;
         }
       }
     }
@@ -434,6 +553,7 @@ export default function File3() {
     const canvasCtx = canvasElement.getContext("2d");
     // Calc FPS
     FPS = math.floor(1000 / (time - previousFrameTime));
+    frameCount = FPS * 3;
     previousFrameTime = time;
 
     if (results.poseLandmarks) poses = results.poseLandmarks;
@@ -474,6 +594,7 @@ export default function File3() {
   function userInterface(p5) {
     const height = 480,
       width = 640;
+    let video;
     // Type of Capture check boxes
     let contMotionCheckBox;
     let keyPositionCheckBox;
@@ -506,42 +627,363 @@ export default function File3() {
     // general settings
     let resetKey, resetContinuous, resetPosition;
     // button for exporting data as csv
-    let exportPosition, exportCaptured, loadFile;
+    let exportPosition, exportCaptured, loadFile, exportVideo;
+
+    // for exporting motion
+    let alias = [
+      "continuous motion",
+      "key position capture",
+      "joint motion",
+      "limb motion",
+    ];
+
+    function saveContinuous() {
+      let motion = [
+        contMotionChecked,
+        keyPosChecked,
+        jointMotionChecked,
+        limbMotionChecked,
+      ];
+      // continuous motion, limb motion, joint motion
+      // disbale button if keyPosChecked
+      let type;
+      if (position.length > 0) {
+        const writer = p5.createWriter("ContinuousMotion.txt");
+        console.log(motion);
+        for (let i = 0; i < motion.length; i++) {
+          // motion capture type
+          if (motion[i]) {
+            writer.print(alias[i]);
+            type = alias[i];
+            console.log(type);
+          }
+        }
+        if (type == "continuous motion") {
+          for (let i = 0; i < dualPosition.length; i++) {
+            writer.write(dualPosition[i].real); // rotation
+            writer.write(" ");
+            writer.print(help.dFromDual(dualPosition[i])); // translation
+          }
+          writer.close();
+        } else {
+          if (type == "joint motion") {
+            let nJoints = position[0].joints.length;
+            let quaternion = [0, 0, 0, 1]; // unit quaternion representing no rotation
+            for (let j = 0; j < nJoints; j++) {
+              writer.print(joints[j]);
+              for (let i = 0; i < position.length - 1; i++) {
+                writer.write(quaternion); // rotation
+                writer.write(" ");
+                writer.print(position[i].joints[j].position); // translation
+              }
+            }
+            writer.close();
+          } else {
+            let nLimbs = position[0].limbs.length;
+            for (let j = 0; j < nLimbs; j++) {
+              writer.print(limbs[j]);
+              for (let i = 0; i < position.length - 1; i++) {
+                writer.write(position[i].limbs[j].dualQuaternion.real); // rotation
+                writer.write(" ");
+                writer.print(
+                  help.dFromDual(position[i].limbs[j].dualQuaternion)
+                ); // translation
+              }
+            }
+            writer.close();
+          }
+        }
+      }
+    }
+
+    function handleFile(file) {
+      try {
+        position = [];
+        dualPosition = [];
+        keyPositions = [];
+        maxZ = 0;
+        prevZ = 0;
+        // needs editing
+        let type, bodypart, color;
+        let keypositions = false;
+        if (file.type == "text") {
+          let result = file.data.split("\n");
+          if (result.length > 0) {
+            // find type of capture
+            if (result[0].includes("key positions")) {
+              keypositions = true;
+              let firstLine = result[0].split("-");
+              type = firstLine[0];
+            } else {
+              type = result[0];
+            }
+
+            if (type == "continuous motion" || type == "key position capture") {
+              for (let i = 1; i < result.length; i++) {
+                let splitLine = result[i].split(" ").join(",").split(",");
+                let counter = 1,
+                  quaternion = [],
+                  vector = [];
+                for (let j = 0; j < splitLine.length; j++) {
+                  if (!isNaN(splitLine[j]) && splitLine[j] != "") {
+                    if (counter < 5) quaternion.push(parseFloat(splitLine[j]));
+                    else vector.push(parseFloat(splitLine[j]));
+                    counter++;
+                  }
+                }
+                // append dual quaternion
+                if (quaternion.length > 0 && vector.length > 0) {
+                  if (vector[2] > prevZ) maxZ = vector[2];
+                  if (keypositions) {
+                    fileRead[1] = true;
+                    keyPositions.push(
+                      help.calcDualQuaternion(quaternion, vector)
+                    );
+                  } else {
+                    fileRead[0] = true;
+                    dualPosition.push(
+                      help.calcDualQuaternion(quaternion, vector)
+                    );
+                  }
+                }
+                prevZ = vector[2];
+              }
+            } else if (type == "joint motion" || type == "limb motion") {
+              console.log(type);
+              let firstRun = true;
+              let counter;
+              for (let i = 1; i < result.length; i++) {
+                // find which body part
+                if (result[i].length <= 15) {
+                  if (
+                    position.length == 0 &&
+                    dualPosition.length == 0 &&
+                    keyPositions.length == 0
+                  )
+                    firstRun = true;
+                  else {
+                    firstRun = false;
+                    counter = 0;
+                  }
+                  bodypart = result[i];
+                  if (type === "joint motion") {
+                    for (const [jointName, jointInfo] of Object.entries(
+                      jointSelected
+                    )) {
+                      if (bodypart === jointInfo.bodypart) {
+                        color = jointInfo.color;
+                      }
+                    }
+                  } else {
+                    for (const [limbName, limbInfo] of Object.entries(
+                      limbSelected
+                    )) {
+                      if (bodypart === limbInfo.bodypart) {
+                        color = limbInfo.color;
+                        console.log(color);
+                      }
+                    }
+                  }
+                } else {
+                  let splitLine = result[i].split(" ").join(",").split(",");
+                  let quaternion = [],
+                    vector = [];
+                  let c = 1;
+                  for (let j = 0; j < splitLine.length; j++) {
+                    if (!isNaN(splitLine[j]) && splitLine[j] != "") {
+                      if (c < 5) quaternion.push(parseFloat(splitLine[j]));
+                      else vector.push(parseFloat(splitLine[j]));
+                      c++;
+                    }
+                  }
+                  if (type == "joint motion" && quaternion.length > 0) {
+                    if (vector[2] > prevZ) maxZ = vector[2];
+                    if (keypositions) {
+                      fileRead[3] = true;
+                      if (firstRun)
+                        keyPositions.push({
+                          joints: [{ position: vector, color: color }],
+                        });
+                      else
+                        keyPositions[counter].joints.push({
+                          position: vector,
+                          color: color,
+                        });
+                    } else {
+                      fileRead[2] = true;
+                      if (firstRun)
+                        position.push({
+                          joints: [{ position: vector, color: color }],
+                        });
+                      else
+                        position[counter].joints.push({
+                          position: vector,
+                          color: color,
+                        });
+                    }
+                    counter++;
+                  } else if (type == "limb motion" && quaternion.length > 0) {
+                    if (vector[2] > prevZ) maxZ = vector[2];
+                    if (keypositions) {
+                      fileRead[5] = true;
+                      if (firstRun)
+                        keyPositions.push({
+                          limbs: [
+                            {
+                              dualQuaternion: help.calcDualQuaternion(
+                                quaternion,
+                                vector
+                              ),
+                              color: color,
+                            },
+                          ],
+                        });
+                      else
+                        keyPositions[counter].limbs.push({
+                          dualQuaternion: help.calcDualQuaternion(
+                            quaternion,
+                            vector
+                          ),
+                          color: color,
+                        });
+                    } else {
+                      fileRead[4] = true;
+                      if (firstRun)
+                        position.push({
+                          limbs: [
+                            {
+                              dualQuaternion: help.calcDualQuaternion(
+                                quaternion,
+                                vector
+                              ),
+                              color: color,
+                            },
+                          ],
+                        });
+                      else
+                        position[counter].limbs.push({
+                          dualQuaternion: help.calcDualQuaternion(
+                            quaternion,
+                            vector
+                          ),
+                          color: color,
+                        });
+                    }
+                    counter++;
+                  }
+                  prevZ = vector[2];
+                }
+              }
+            }
+          } else {
+            p5.window.alert("File is empty!");
+          }
+        } else {
+          p5.window.alert("File must be a text file!");
+        }
+      } catch (error) {
+        p5.alert("File is in the wrong format!");
+      }
+    }
+
+    function saveKey() {
+      let motion = [
+        contMotionChecked,
+        keyPosChecked,
+        jointMotionChecked,
+        limbMotionChecked,
+      ];
+      let type;
+      if (position.length > 0) {
+        let writer = p5.createWriter("KeyPositions.txt");
+        for (let i = 0; i < motion.length; i++) {
+          // motion capture type
+          if (motion[i]) {
+            writer.print(alias[i] + "-key positions");
+            type = alias[i];
+          }
+        }
+        if (type == "continuous motion" || type == "key position capture") {
+          for (let i = 0; i < keyPositions.length; i++) {
+            writer.write(keyPositions[i].real); // rotation
+            writer.write(" ");
+            writer.print(help.dFromDual(keyPositions[i])); // translation
+          }
+          writer.close();
+        } else {
+          if (type == "joint motion") {
+            let nJoints = keyPositions[0].joints.length;
+            let quaternion = [0, 0, 0, 1]; // unit quaternion representing no rotation
+            for (let j = 0; j < nJoints; j++) {
+              writer.print(joints[j]);
+              for (let i = 0; i < keyPositions.length - 1; i++) {
+                writer.write(quaternion); // rotation
+                writer.write(" ");
+                writer.print(
+                  help.dFromDual(keyPositions[i].joints[j].keyPositions)
+                ); // translation
+              }
+            }
+          } else {
+            let nLimbs = keyPositions[0].limbs.length;
+            for (let j = 0; j < nLimbs; j++) {
+              writer.print(limbs[j]);
+              for (let i = 0; i < keyPositions.length - 1; i++) {
+                writer.write(keyPositions[i].limbs[j].dualQuaternion.real); // rotation
+                writer.write(" ");
+                writer.print(
+                  help.dFromDual(keyPositions[i].limbs[j].dualQuaternion)
+                ); // translation
+              }
+            }
+          }
+        }
+      }
+    }
 
     p5.setup = () => {
       p5.createCanvas(width, height);
       p5.textSize(15);
       p5.textStyle(p5.BOLD);
+      video = p5.createCapture(p5.VIDEO);
+      video.hide();
       // buttons
       resetKey = p5.createButton("Reset Key Position");
-      resetKey.position(355, 280);
+      resetKey.position(355, 265);
       resetKey.size(200, 25);
-      resetKey.mousePressed();
+      resetKey.mousePressed(() => (keyPositions = []));
 
       resetContinuous = p5.createButton("Reset Continuous Motion");
-      resetContinuous.position(355, 310);
+      resetContinuous.position(355, 295);
       resetContinuous.size(200, 25);
-      resetContinuous.mousePressed();
+      resetContinuous.mousePressed(() => {
+        position = originalPosition;
+        dualPosition = originaldualPosition;
+      });
 
       resetPosition = p5.createButton("Reset To Original Position");
-      resetPosition.position(355, 340);
+      resetPosition.position(355, 325);
       resetPosition.size(200, 25);
-      resetPosition.mousePressed(canvasReset);
+      resetPosition.mousePressed(() => (resetCanvas = true));
 
-      exportPosition = p5.createButton("Export Positions");
-      exportPosition.position(355, 370);
+      exportPosition = p5.createButton("Export Key Positions");
+      exportPosition.position(355, 355);
       exportPosition.size(200, 25);
-      exportPosition.mousePressed();
+      exportPosition.mousePressed(saveKey);
 
       exportCaptured = p5.createButton("Export Captured Motion");
-      exportCaptured.position(355, 400);
+      exportCaptured.position(355, 385);
       exportCaptured.size(200, 25);
-      exportCaptured.mousePressed(); //Export
+      exportCaptured.mousePressed(saveContinuous); //Export
 
-      loadFile = p5.createButton("Load File");
-      loadFile.position(355, 430);
+      exportVideo = p5.createButton("Download Video");
+      exportVideo.position(355, 415);
+      exportVideo.size(200, 25);
+      exportVideo.mousePressed(downloadVideo); //Export
+
+      loadFile = p5.createFileInput(handleFile);
+      loadFile.position(355, 445);
       loadFile.size(200, 25);
-      loadFile.mousePressed();
 
       // type of capture
       contMotionCheckBox = p5.createCheckbox(
@@ -618,19 +1060,72 @@ export default function File3() {
         }
       }
     }
-    function canvasReset() {
-      resetCanvas = true;
+    function downloadVideo() {
+      setTimeout(() => {
+        const blob = new Blob(recordedChunks, {
+          type: "video/webm",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "recording.webm";
+        a.click();
+        URL.revokeObjectURL(url);
+      }, 0);
     }
     p5.draw = () => {
       p5.background(220);
       p5.text("Type of Capture", 20, 30);
       p5.text("Type of Motion", 20, 220);
       p5.text("Motion Properties", 350, 30);
-      p5.text("General Settings", 350, 260);
+      p5.text("General Settings", 350, 250);
       p5.text("Density", 20, 380);
       p5.text("Object Size", 20, 430);
       p5.text(sizeSlider.value().toString() + "%", 190, 455);
 
+      if (!recordedChunks) {
+        exportVideo.attribute("disabled", true);
+      } else {
+        exportVideo.removeAttribute("disabled");
+      }
+      if (timer == true) {
+        if (oneRun) {
+          const stream = video.elt.captureStream(25);
+          mediaRecorder = new MediaRecorder(stream, {
+            mimeType: "video/webm;codecs=vp9",
+          });
+          recordedChunks = [];
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+              recordedChunks.push(e.data);
+              console.log("appending");
+            }
+          };
+          mediaRecorder.start();
+          console.log("recording");
+          oneRun = !oneRun;
+        }
+      }
+      if (recordingEnded) {
+        recordingEnded = false;
+        mediaRecorder.stop();
+      }
+
+      // general settings buttons enable/disable
+      if (keyPositions.length == 0) {
+        exportPosition.attribute("disabled", true);
+        resetKey.attribute("disabled", true);
+      } else {
+        exportPosition.removeAttribute("disabled");
+        resetKey.removeAttribute("disabled");
+      }
+      if (position.length == 0 && dualPosition.length == 0) {
+        exportCaptured.attribute("disabled", true);
+        resetContinuous.attribute("disabled", true);
+      } else {
+        exportCaptured.removeAttribute("disabled");
+        resetContinuous.removeAttribute("disabled");
+      }
       if (keyPositionsSelected) {
         keyPositionsSelected = false;
         // check key positions
@@ -755,6 +1250,17 @@ export default function File3() {
       coordFrameChecked = coordFrameCheckBox.checked();
       trajectoryChecked = trajectoryCheckBox.checked();
 
+      // read continuous motion from text file
+      if (fileRead[0]) {
+        coordFrameCheckBox.attribute("checked", true);
+      }
+      if (fileRead[2] || fileRead[4]) {
+        objectCheckBox.attribute("checked", true);
+        cMotionCheckBox.attribute("checked", true);
+      }
+      if (fileRead[3] || fileRead[5]) {
+        kMotionCheckBox.attribute("checked", true);
+      }
       if (contMotionChecked) {
         if (keyPositions.length < 1)
           // disable key positions
@@ -773,6 +1279,15 @@ export default function File3() {
       if (keyPosChecked) {
         // disable continuous motion
         cMotionCheckBox.attribute("disabled", true);
+        if (screwMotionChecked || bezierMotionChecked || bSplineMotionChecked) {
+          trajectoryCheckBox.removeAttribute("disabled");
+          coordFrameCheckBox.removeAttribute("disabled");
+          objectCheckBox.removeAttribute("disabled");
+        } else {
+          trajectoryCheckBox.attribute("disabled", true);
+          coordFrameCheckBox.attribute("disabled", true);
+          objectCheckBox.attribute("disabled", true);
+        }
         // recording in progress
         if (timer) {
           kMotionCheckBox.attribute("checked", true);
@@ -892,17 +1407,13 @@ export default function File3() {
         startRecording.attribute("disabled", ""); // disable recording checkbox
       }
     };
-    function Export() {
-      console.log("export to csv");
-      ExportCSV(csvData, "data file");
-    }
   }
   function sketch(p5) {
     const height = 450,
       width = 640;
     // object
     let teapot;
-    let green;
+    let wrist;
     // slider to pick point from array of points
     let pointPicker;
     let pickerLabel;
@@ -921,7 +1432,7 @@ export default function File3() {
 
     p5.preload = () => {
       teapot = p5.loadModel(teapotURL, true);
-      green = p5.loadImage(greenColor);
+      wrist = p5.loadModel(wristURL, true);
     };
     p5.setup = () => {
       p5.createCanvas(width, height, p5.WEBGL);
@@ -973,7 +1484,6 @@ export default function File3() {
         dualPosition.splice(index, 1);
         // remove position from position array
         position.splice(index, 1);
-        alternate.splice(index, 1);
       }
       if (jointMotionChecked || limbMotionChecked) {
         // remove position from position array
@@ -983,18 +1493,23 @@ export default function File3() {
     function highlightPoint() {
       p5.noStroke();
       p5.fill("yellow");
-      p5.box(10);
+      p5.box(5);
     }
     function drawObject(objectColor) {
-      p5.scale(0.4);
-      p5.rotateX(p5.PI);
-      p5.rotateY(p5.PI);
+      // p5.scale(0.4);
+      // p5.rotateX(p5.PI);
+      // p5.rotateY(p5.PI);
+      p5.rotateX(p5.PI / 2);
+      p5.scale(0.2);
       if (objectColor == "normalMaterial") {
         p5.normalMaterial();
-        p5.model(teapot);
+        // p5.model(teapot);
+        p5.model(wrist);
       } else {
         p5.stroke(objectColor);
-        p5.model(teapot);
+        p5.fill(objectColor);
+        // p5.model(teapot);
+        p5.model(wrist);
       }
     }
     function drawFrame(length) {
@@ -1079,8 +1594,11 @@ export default function File3() {
         for (let j = 0; j < position[i].length; j += resolution) {
           //position
           const pointPosition = help.dFromDual(position[i][j]);
-          const x = p5.map(pointPosition[0] * -1, 0, 1, -width / 2, width / 2),
-            y = p5.map(pointPosition[1] * -1, 0, 1, -height / 2, height / 2);
+          for (let h = 0; h < pointPosition.length; h++) {
+            if (pointPosition[h] < 0) pointPosition[h] *= -1;
+          }
+          const x = p5.map(pointPosition[0], 0, 1, -width / 2, width / 2),
+            y = p5.map(pointPosition[1], 0, 1, -height / 2, height / 2);
           let z = (pointPosition[2] * width) / 2;
           //orientation
           const matrix = help.rFromDual(position[i][j]);
@@ -1117,8 +1635,11 @@ export default function File3() {
           let limb = position[i].limbs[j];
           // position
           const pointPosition = help.dFromDual(limb.dualQuaternion);
-          const x = p5.map(pointPosition[0] * -1, 0, 1, -width / 2, width / 2),
-            y = p5.map(pointPosition[1] * -1, 0, 1, -height / 2, height / 2);
+          for (let h = 0; h < pointPosition.length; h++) {
+            if (pointPosition[h] < 0) pointPosition[h] *= -1;
+          }
+          const x = p5.map(pointPosition[0], 0, 1, -width / 2, width / 2),
+            y = p5.map(pointPosition[1], 0, 1, -height / 2, height / 2);
           let z = (pointPosition[2] * width) / 2;
           //orientation
           const matrix = help.rFromDual(limb.dualQuaternion);
@@ -1188,10 +1709,12 @@ export default function File3() {
       for (let i = 0; i < dualQuaternions.length; i += increment) {
         // calc translation
         const pointPosition = help.dFromDual(dualQuaternions[i]);
-        const x = p5.map(pointPosition[0] * -1, 0, 1, -width / 2, width / 2),
-          y = p5.map(pointPosition[1] * -1, 0, 1, -height / 2, height / 2);
+        for (let h = 0; h < pointPosition.length; h++) {
+          if (pointPosition[h] < 0) pointPosition[h] *= -1;
+        }
+        const x = p5.map(pointPosition[0], 0, 1, -width / 2, width / 2),
+          y = p5.map(pointPosition[1], 0, 1, -height / 2, height / 2);
         let z = (pointPosition[2] * width) / 2;
-        if (alternate.length > 0) z = alternate[i];
         lineCoordinates.push([x, y, z]);
         // calc orientation
         const pointOrientation = help.rFromDual(dualQuaternions[i]);
@@ -1251,13 +1774,17 @@ export default function File3() {
       }
     }
     function drawKeyPositions(dualQuaternions) {
+      let lineCoordinates = [];
       for (let i = 0; i < dualQuaternions.length; i += 1) {
         // calc translation
         const pointPosition = help.dFromDual(dualQuaternions[i]);
-        const x = p5.map(pointPosition[0] * -1, 0, 1, -width / 2, width / 2),
-          y = p5.map(pointPosition[1] * -1, 0, 1, -height / 2, height / 2);
+        for (let h = 0; h < pointPosition.length; h++) {
+          if (pointPosition[h] < 0) pointPosition[h] *= -1;
+        }
+        const x = p5.map(pointPosition[0], 0, 1, -width / 2, width / 2),
+          y = p5.map(pointPosition[1], 0, 1, -height / 2, height / 2);
         let z = (pointPosition[2] * width) / 2;
-        if (alternate.length > 0) z = alternate[i];
+        lineCoordinates.push([x, y, z]);
         // calc orientation
         const pointOrientation = help.rFromDual(dualQuaternions[i]);
         p5.push();
@@ -1282,15 +1809,29 @@ export default function File3() {
           1
         );
         drawFrame(30);
-        drawObject("normalMaterial");
+        if (!timer) drawObject("normalMaterial");
         p5.pop();
+        // if (trajectoryChecked) {
+        //   p5.stroke("purple");
+        //   p5.strokeWeight(3);
+        //   p5.noFill();
+        //   p5.beginShape();
+        //   for (let i = 0; i < lineCoordinates.length; i += 1) {
+        //     let x = lineCoordinates[i][0],
+        //       y = lineCoordinates[i][1],
+        //       z = lineCoordinates[i][2];
+        //     p5.vertex(x, y, z);
+        //   }
+        //   p5.endShape();
+        // }
       }
     }
     p5.draw = () => {
       p5.clear();
       // reset canvas
       if (resetCanvas) {
-        if (spatialChecked) p5.camera(0, 0, 1000);
+        if (spatialChecked && maxZ === 0) p5.camera(0, 0, 1000);
+        if (maxZ > 0) p5.camera(0, 0, (maxZ * 320) / 2 + 200);
         else {
           p5.camera();
           console.log("reset");
@@ -1298,6 +1839,7 @@ export default function File3() {
         resetCanvas = false;
       }
       if (timer && spatialChecked) p5.camera(0, 0, 1000);
+      if (maxZ > 0) p5.camera(0, 0, (maxZ * 320) / 2 + 200);
       if (whiteBGChecked) p5.background("white");
       else p5.background("black");
       // toggling delete button visibility
@@ -1309,34 +1851,34 @@ export default function File3() {
       }
       // allows for rotation of view using mouse
       p5.orbitControl();
-      if (cMotionChecked) {
+      if (cMotionChecked || fileRead[0]) {
         if (dualPosition.length > 0) {
           drawFromQuaternions(
             dualPosition,
             densityIncrement,
-            25,
+            30,
             size,
             "normalMaterial",
             [0, 0, 255]
           );
         }
       }
-      if (kMotionChecked)
+      if (kMotionChecked || fileRead[1] || fileRead[3] || fileRead[5])
         if (keyPositions.length > 0) {
-          if (jointMotionChecked) {
+          if (jointMotionChecked || fileRead[3]) {
             drawJoints(keyPositions, 100, 1, true);
-          } else if (limbMotionChecked) {
+          } else if (limbMotionChecked || fileRead[5]) {
             drawLimbs(keyPositions, size, 1, true);
           } else {
             drawKeyPositions(keyPositions);
           }
         }
-      if (jointMotionChecked) {
+      if (recordedMotion === "joint" || fileRead[2]) {
         if (position.length > 0 && cMotionChecked) {
           drawJoints(position, size, densityIncrement);
         }
       }
-      if (limbMotionChecked) {
+      if (recordedMotion === "limb" || fileRead[4]) {
         if (position.length > 0 && cMotionChecked) {
           drawLimbs(position, size, densityIncrement, false);
         }
@@ -1345,7 +1887,10 @@ export default function File3() {
       if (interpolateOnce) {
         interpolateOnce = false;
         let points = keyPositions;
-        if (points.length > 0 && (contMotionChecked || keyPosChecked)) {
+        if (
+          points.length > 0 &&
+          (contMotionChecked || keyPosChecked || fileRead[0] || fileRead[1])
+        ) {
           // screw
           if (screwMotionChecked) screw = help.rationalScrew(points, 0.01);
           else screw = [];
@@ -1357,7 +1902,10 @@ export default function File3() {
             bSpline = help.bSpline(points, degree, 0.01);
           else bSpline = [];
         }
-        if (points.length > 0 && jointMotionChecked) {
+        if (
+          points.length > 0 &&
+          (recordedMotion === "joint" || fileRead[2] || fileRead[3])
+        ) {
           if (screwMotionChecked) {
             screw = help.rationalScrewJoints(points, 0.01);
           } else screw = [];
@@ -1368,7 +1916,10 @@ export default function File3() {
             bSpline = help.bSplineJoints(points, degree, 0.01);
           } else bSpline = [];
         }
-        if (points.length > 0 && limbMotionChecked) {
+        if (
+          points.length > 0 &&
+          (recordedMotion === "limb" || fileRead[4] || fileRead[5])
+        ) {
           if (screwMotionChecked) {
             screw = help.rationalScrewLimbs(points, 0.01);
           } else screw = [];
@@ -1383,7 +1934,7 @@ export default function File3() {
 
       // if motion approximation data available then draw on canvas
       if (screw.length > 0) {
-        if (contMotionChecked || keyPosChecked)
+        if (contMotionChecked || keyPosChecked || fileRead[0] || fileRead[1])
           drawFromQuaternions(
             screw,
             densityIncrement,
@@ -1392,13 +1943,13 @@ export default function File3() {
             "yellow",
             [255, 215, 0]
           );
-        if (jointMotionChecked)
+        if (recordedMotion === "joint" || fileRead[2] || fileRead[3])
           drawJointsMotion(screw, size, densityIncrement, [255, 215, 0]);
-        if (limbMotionChecked)
+        if (recordedMotion === "limb" || fileRead[4] || fileRead[5])
           drawLimbsMotion(screw, size, densityIncrement, [255, 215, 0]);
       }
       if (bezier.length > 0) {
-        if (contMotionChecked || keyPosChecked)
+        if (contMotionChecked || keyPosChecked || fileRead[0] || fileRead[1])
           drawFromQuaternions(
             bezier,
             densityIncrement,
@@ -1407,13 +1958,13 @@ export default function File3() {
             "red",
             [255, 0, 0]
           );
-        if (jointMotionChecked)
+        if (recordedMotion === "joint" || fileRead[2] || fileRead[3])
           drawJointsMotion(bezier, size, densityIncrement, [255, 0, 0]);
-        if (limbMotionChecked)
+        if (recordedMotion === "limb" || fileRead[4] || fileRead[5])
           drawLimbsMotion(bezier, size, densityIncrement, [255, 0, 0]);
       }
       if (bSpline.length > 0) {
-        if (contMotionChecked || keyPosChecked)
+        if (contMotionChecked || keyPosChecked || fileRead[0] || fileRead[1])
           drawFromQuaternions(
             bSpline,
             densityIncrement,
@@ -1422,9 +1973,9 @@ export default function File3() {
             "green",
             [0, 255, 0]
           );
-        if (jointMotionChecked)
+        if (recordedMotion === "joint" || fileRead[2] || fileRead[3])
           drawJointsMotion(bSpline, size, densityIncrement, [0, 255, 0]);
-        if (limbMotionChecked)
+        if (recordedMotion === "limb" || fileRead[4] || fileRead[5])
           drawLimbsMotion(bSpline, size, densityIncrement, [0, 255, 0]);
       }
     };
@@ -1444,6 +1995,17 @@ export default function File3() {
     p5.draw = () => {
       p5.clear();
       p5.background("black");
+      // uncheck joints and limbs if motion capture not selected
+      if (!jointMotionChecked) {
+        for (const [jointName, jointInfo] of Object.entries(jointSelected)) {
+          if (jointInfo.selected) jointInfo.selected = false;
+        }
+      }
+      if (!limbMotionChecked) {
+        for (const [limbName, limbInfo] of Object.entries(limbSelected)) {
+          if (limbInfo.selected) limbInfo.selected = false;
+        }
+      }
       if (timer) {
         p5.fill("red");
         p5.text(FPS, -700, -400);
@@ -1737,11 +2299,6 @@ export default function File3() {
         if ((x - 370) ** 2 + (y - 360) ** 2 <= 10 ** 2)
           jointSelected.lankle.selected = !jointSelected.lankle.selected;
       }
-      // if ((x - 320) ** 2 + (y - 200) ** 2 <= 10 ** 2)
-      //   pelvisSelected = !pelvisSelected;
-
-      // if ((x - 320) ** 2 + (y - 100) ** 2 <= 10 ** 2)
-      //   neckSelected = !neckSelected;
     };
   }
   return (

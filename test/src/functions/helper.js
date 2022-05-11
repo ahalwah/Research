@@ -159,6 +159,23 @@ export default class Helper {
 
     return [q1, q2, q3, q4];
   }
+  // takes a quaternion and a vector
+  calcDualQuaternion(Q, d) {
+    const holder = [
+      [0, -d[2], d[1], d[0]],
+      [d[2], 0, -d[0], d[1]],
+      [-d[1], d[0], 0, d[2]],
+      [-d[0], -d[1], -d[2], 0],
+    ];
+    let Q0 = math.multiply(math.multiply(0.5, holder), [
+      [Q[0]],
+      [Q[1]],
+      [Q[2]],
+      [Q[3]],
+    ]);
+    Q0 = [Q0[0][0], Q0[1][0], Q0[2][0], Q0[3][0]];
+    return { real: Q, dual: Q0 };
+  }
   dualQuaternion(P1, P2) {
     // P1 = Pchild, P2 = Pparent
     // quaternion
