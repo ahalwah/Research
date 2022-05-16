@@ -3,9 +3,7 @@ import { ReactP5Wrapper } from "react-p5-wrapper";
 import * as math from "mathjs";
 import teapotURL from "./assets/teapot.obj";
 import wristURL from "./assets/wrist object.obj";
-import greenColor from "./assets/green.png";
 import Helper from "./functions/helper";
-import ExportCSV from "./functions/exportToCSV";
 import * as Holistic from "@mediapipe/holistic/holistic";
 // mediapipe camrea tools
 import * as Camera from "@mediapipe/camera_utils/camera_utils";
@@ -22,7 +20,9 @@ export default function File3() {
   let bezierMotionChecked = false;
   // cb for b-spline motion
   let bSplineMotionChecked = false;
-  let degree;
+  // cb for b-spline interp motion
+  let bSplineInterpChecked = false;
+  let degree, degree2;
 
   // Type of Capture
   // checkbox recording
@@ -86,7 +86,7 @@ export default function File3() {
       selected: false,
       index1: 26,
       index2: 28,
-      color: [244, 164, 96],
+      color: [204, 0, 102],
       bodypart: "right lower leg",
     },
     luleg: {
@@ -100,7 +100,7 @@ export default function File3() {
       selected: false,
       index1: 25,
       index2: 27,
-      color: [240, 230, 140],
+      color: [128, 128, 128],
       bodypart: "left lower leg",
     },
   };
@@ -108,6 +108,12 @@ export default function File3() {
   let jointMotionChecked = false;
   let joints = [];
   let jointSelected = {
+    head: {
+      selected: false,
+      index: 0,
+      color: [102, 0, 102],
+      bodypart: "head",
+    },
     rshoulder: {
       selected: false,
       index: 12,
@@ -198,6 +204,7 @@ export default function File3() {
   let dualPosition = [],
     originaldualPosition = [];
   let keyPositions = [];
+
   // cont motion 0, key positions 1, joint cont 2, joint key 3, limb cont 4, limb key 5
   let fileRead = [false, false, false, false, false, false];
   let recordedMotion = "";
@@ -215,9 +222,10 @@ export default function File3() {
   // general settings
   let resetCanvas = false;
 
-  let mediaRecorder;
-  let recordedChunks;
-  let oneRun = false;
+  let mediaRecorder, mediaRecorder2;
+  let recordedChunks, recordedChunks2;
+  let oneRun = false,
+    oneRun2 = false;
   let recordingEnded = false;
 
   // React DOM references
@@ -282,6 +290,7 @@ export default function File3() {
       canvasCtx.strokeStyle = "#300000";
       canvasCtx.stroke();
     }
+
     // check if index pointer is on button
     if (checked && results.rightHandLandmarks) {
       const x = results.rightHandLandmarks[8].x * canvasElement.width,
@@ -291,7 +300,15 @@ export default function File3() {
       if (timer == true)
         inCircle2 = (x - center_x) ** 2 + (y - center_y) ** 2 <= radius ** 2;
     }
-    // Draw landmark guides
+
+    // count down 5 seconds first
+    if (inCircleCounter > 10 && timer == false && startTime == null) {
+      startTime = new Date();
+    }
+    if (inCircleCounter > 10 && timer == false && startTime != null) {
+      seconds = math.floor((new Date() - startTime) / 1000);
+    }
+
     if (results) {
       if (results.rightHandLandmarks && results.poseLandmarks) {
         const hand = results.rightHandLandmarks;
@@ -307,13 +324,7 @@ export default function File3() {
             inCircleCounter2++;
           }
         }
-        // count down 5 seconds first
-        if (inCircleCounter > 10 && timer == false && startTime == null) {
-          startTime = new Date();
-        }
-        if (inCircleCounter > 10 && timer == false && startTime != null) {
-          seconds = math.floor((new Date() - startTime) / 1000);
-        }
+
         // intiatie recording
         if (inCircleCounter > 10 && timer == false && seconds >= 5) {
           // resets
@@ -333,10 +344,12 @@ export default function File3() {
           startTime = new Date();
           timer = true;
           oneRun = true;
+          oneRun2 = true;
         }
 
         // do the recording
         if (timer == true) {
+          keyPositionsSelected = false; // reset it
           maxZ = 0;
           prevZ = 0;
           fileRead = fileRead.map((x) => false);
@@ -421,7 +434,7 @@ export default function File3() {
                 // condition
                 if (delta < 0.3) {
                   if (frameBuffer === frameCount) {
-                    // frameCount = FPS * 3 sec
+                    // frameCount = FPS * 4 sec
                     keyPositions.push(dualQ);
                     frameBuffer = 0;
                   } else frameBuffer++;
@@ -553,7 +566,7 @@ export default function File3() {
     const canvasCtx = canvasElement.getContext("2d");
     // Calc FPS
     FPS = math.floor(1000 / (time - previousFrameTime));
-    frameCount = FPS * 3;
+    frameCount = FPS * 4;
     previousFrameTime = time;
 
     if (results.poseLandmarks) poses = results.poseLandmarks;
@@ -609,6 +622,7 @@ export default function File3() {
     let bezierMotionCheckbox;
     let splineMotionCheckbox;
     let pSelector,
+      pSelector2,
       selection = [];
     let splineInterpCheckbox;
 
@@ -647,7 +661,7 @@ export default function File3() {
       // continuous motion, limb motion, joint motion
       // disbale button if keyPosChecked
       let type;
-      if (position.length > 0) {
+      if (position.length > 0 || dualPosition.length > 0) {
         const writer = p5.createWriter("ContinuousMotion.txt");
         console.log(motion);
         for (let i = 0; i < motion.length; i++) {
@@ -701,6 +715,7 @@ export default function File3() {
         position = [];
         dualPosition = [];
         keyPositions = [];
+        fileRead = [false, false, false, false, false];
         maxZ = 0;
         prevZ = 0;
         // needs editing
@@ -710,7 +725,10 @@ export default function File3() {
           let result = file.data.split("\n");
           if (result.length > 0) {
             // find type of capture
-            if (result[0].includes("key positions")) {
+            if (
+              result[0].includes("key positions") ||
+              result[0] == "key position capture"
+            ) {
               keypositions = true;
               let firstLine = result[0].split("-");
               type = firstLine[0];
@@ -780,7 +798,6 @@ export default function File3() {
                     )) {
                       if (bodypart === limbInfo.bodypart) {
                         color = limbInfo.color;
-                        console.log(color);
                       }
                     }
                   }
@@ -884,6 +901,12 @@ export default function File3() {
       } catch (error) {
         p5.alert("File is in the wrong format!");
       }
+      console.log(fileRead);
+      let loadedCorrectly = false;
+      fileRead.forEach((x) => {
+        if (x) loadedCorrectly = true;
+      });
+      if (!loadedCorrectly) p5.alert("File might be missing capture type!");
     }
 
     function saveKey() {
@@ -951,7 +974,10 @@ export default function File3() {
       resetKey = p5.createButton("Reset Key Position");
       resetKey.position(355, 265);
       resetKey.size(200, 25);
-      resetKey.mousePressed(() => (keyPositions = []));
+      resetKey.mousePressed(() => {
+        kMotionCheckBox.attribute("checked", false);
+        keyPositions = [];
+      });
 
       resetContinuous = p5.createButton("Reset Continuous Motion");
       resetContinuous.position(355, 295);
@@ -1033,19 +1059,23 @@ export default function File3() {
       splineMotionCheckbox.position(20, 300);
       splineMotionCheckbox.changed(interpOnce);
       pSelector = p5.createSelect().id("degree");
-      pSelector.position(220, 300);
+      pSelector.position(220, 302);
       pSelector.changed(interpOnce);
       splineInterpCheckbox = p5.createCheckbox(
         " B-Spline Interpolation",
         false
       );
       splineInterpCheckbox.position(20, 330);
+      splineInterpCheckbox.changed(interpOnce);
+      pSelector2 = p5.createSelect().id("degree2");
+      pSelector2.position(220, 335);
+      pSelector2.changed(interpOnce);
 
       // density and object size
       densitySlider = p5.createSlider(1, 100, 100, 1);
       densitySlider.position(20, 390);
       densitySlider.style("width", "150px");
-      sizeSlider = p5.createSlider(1, 100, 50, 1);
+      sizeSlider = p5.createSlider(1, 100, 70, 1);
       sizeSlider.position(20, 440);
       sizeSlider.style("width", "150px");
     };
@@ -1062,15 +1092,26 @@ export default function File3() {
     }
     function downloadVideo() {
       setTimeout(() => {
+        // for video
         const blob = new Blob(recordedChunks, {
           type: "video/webm",
         });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "recording.webm";
+        a.download = "videoRecording.webm";
         a.click();
         URL.revokeObjectURL(url);
+        // for canvas
+        const blob2 = new Blob(recordedChunks2, {
+          type: "video/webm",
+        });
+        const url2 = URL.createObjectURL(blob2);
+        const a2 = document.createElement("a");
+        a2.href = url2;
+        a2.download = "skeletonRecording.webm";
+        a2.click();
+        URL.revokeObjectURL(url2);
       }, 0);
     }
     p5.draw = () => {
@@ -1098,18 +1139,44 @@ export default function File3() {
           mediaRecorder.ondataavailable = (e) => {
             if (e.data.size > 0) {
               recordedChunks.push(e.data);
-              console.log("appending");
             }
           };
           mediaRecorder.start();
-          console.log("recording");
           oneRun = !oneRun;
         }
       }
       if (recordingEnded) {
         recordingEnded = false;
         mediaRecorder.stop();
+        mediaRecorder2.stop();
       }
+
+      // if (position.length > 0 && dualPosition.length > 0) {
+      //   cMotionCheckBox.removeAttribute("disabled");
+      // } else {
+      //   cMotionCheckBox.attribute("checked", false);
+      //   cMotionCheckBox.attribute("disabled", true);
+      // }
+      // coord frames available for key positions and dual positions
+      if (dualPosition.length > 0 || keyPositions.length > 0) {
+        if (
+          recordedMotion === "continuous" ||
+          recordedMotion === "key" ||
+          fileRead[0] ||
+          fileRead[1]
+        ) {
+          coordFrameCheckBox.removeAttribute("disabled");
+        } else {
+          if (coordFrameChecked) coordFrameCheckBox.attribute("checked", false);
+          coordFrameCheckBox.attribute("disabled", true);
+        }
+      }
+      // if (keyPositions.length > 0) {
+      //   kMotionCheckBox.removeAttribute("disabled");
+      // } else {
+      //   kMotionCheckBox.attribute("checked", false);
+      //   kMotionCheckBox.attribute("disabled", true);
+      // }
 
       // general settings buttons enable/disable
       if (keyPositions.length == 0) {
@@ -1127,11 +1194,14 @@ export default function File3() {
         resetContinuous.removeAttribute("disabled");
       }
       if (keyPositionsSelected) {
+        // uncheck continuous motion
+        cMotionCheckBox.removeAttribute("checked");
+        if (!kMotionChecked) kMotionCheckBox.attribute("checked", true);
+      }
+      if (keyPositions.length > 0) {
         keyPositionsSelected = false;
         // check key positions
         kMotionCheckBox.attribute("checked", true);
-        // uncheck continuous motion
-        cMotionCheckBox.removeAttribute("checked");
         // adjust drop down menu
         let n = keyPositions.length;
         // if empty then fill
@@ -1139,6 +1209,7 @@ export default function File3() {
           for (let i = keyPositions.length - 1; i >= 1; i--) {
             selection.push(i);
             pSelector.option(i);
+            pSelector2.option(i);
           }
         }
         // if it needs more degrees
@@ -1147,7 +1218,8 @@ export default function File3() {
           if (max < keyPositions.length - 1) {
             for (let i = max + 1; i <= keyPositions.length - 1; i++) {
               selection.unshift(i);
-              pSelector.unshift(i);
+              pSelector.option(i);
+              pSelector2.option(i);
             }
           }
           // if it should have less degrees then we disable unecessary degrees
@@ -1155,59 +1227,48 @@ export default function File3() {
             let ind = selection.indexOf(keyPositions.length);
             for (let i = ind; i < selection.length; i++) {
               pSelector.disable(selection[i].toString());
+              pSelector2.disable(selection[i].toString());
             }
           }
           // if it has right number of degree options, remove disables if exists
           if (max == keyPositions.length - 1) {
             for (let i = 0; i < selection.length; i++) {
               enable("degree", i);
+              enable("degree2", i);
             }
           }
         }
       }
       degree = parseInt(pSelector.value());
+      degree2 = parseInt(pSelector2.value());
       // remaking slider per increment values
       if (
-        position.length > 0 &&
-        timer == false &&
-        (cMotionChecked || kMotionChecked)
+        (position.length > 0 ||
+          dualPosition.length > 0 ||
+          keyPositions.length > 0) &&
+        timer == false
       ) {
-        if (densitySlider.value() <= 50) {
-          let maxInc = math.floor((position.length - 1) / 2);
-          let minInc = 1;
-          let increments = [];
-          let percents = [];
-          for (let i = minInc; i <= maxInc; i++) increments.push(i);
-          for (let i = 0; i < increments.length; i++) {
-            let num = math.floor(position.length / increments[i]);
-            percents.push(math.floor(100 * (num / position.length)));
-          }
-          // find closest percent
-          let chosenInc;
-          let pdiff = 100;
-          for (let i = 0; i < percents.length; i++) {
-            let diff = math.abs(percents[i] - densitySlider.value());
-            if (diff <= pdiff) {
-              chosenInc = increments[i];
-              pdiff = diff;
+        let posLength = 0;
+        if (position.length > 0) {
+          posLength = position.length;
+        } else {
+          if (dualPosition.length > 0) {
+            posLength = dualPosition.length;
+          } else {
+            if (keyPositions.length > 0) {
+              posLength = 50;
             }
           }
-          densityIncrement = chosenInc;
-          p5.text(densitySlider.value().toString() + "%", 190, 405);
-        } else {
-          p5.text(densitySlider.value().toString() + "%", 190, 405);
-          densityIncrement = 1;
         }
-      } else if (position.length > 0 && timer == false && jointMotionChecked) {
         if (densitySlider.value() <= 50) {
-          let maxInc = math.floor((position.length - 1) / 2);
+          let maxInc = math.floor((posLength - 1) / 2);
           let minInc = 1;
           let increments = [];
           let percents = [];
           for (let i = minInc; i <= maxInc; i++) increments.push(i);
           for (let i = 0; i < increments.length; i++) {
-            let num = math.floor(position.length / increments[i]);
-            percents.push(math.floor(100 * (num / position.length)));
+            let num = math.floor(posLength / increments[i]);
+            percents.push(math.floor(100 * (num / posLength)));
           }
           // find closest percent
           let chosenInc;
@@ -1242,6 +1303,7 @@ export default function File3() {
       screwMotionChecked = screwMotionCheckBox.checked();
       bezierMotionChecked = bezierMotionCheckbox.checked();
       bSplineMotionChecked = splineMotionCheckbox.checked();
+      bSplineInterpChecked = splineInterpCheckbox.checked();
 
       cMotionChecked = cMotionCheckBox.checked();
       kMotionChecked = kMotionCheckBox.checked();
@@ -1279,15 +1341,6 @@ export default function File3() {
       if (keyPosChecked) {
         // disable continuous motion
         cMotionCheckBox.attribute("disabled", true);
-        if (screwMotionChecked || bezierMotionChecked || bSplineMotionChecked) {
-          trajectoryCheckBox.removeAttribute("disabled");
-          coordFrameCheckBox.removeAttribute("disabled");
-          objectCheckBox.removeAttribute("disabled");
-        } else {
-          trajectoryCheckBox.attribute("disabled", true);
-          coordFrameCheckBox.attribute("disabled", true);
-          objectCheckBox.attribute("disabled", true);
-        }
         // recording in progress
         if (timer) {
           kMotionCheckBox.attribute("checked", true);
@@ -1429,6 +1482,8 @@ export default function File3() {
     let screw = [];
     let bezier = [];
     let bSpline = [];
+    let bSplineInterp = [];
+    let interpKey = [];
 
     p5.preload = () => {
       teapot = p5.loadModel(teapotURL, true);
@@ -1459,14 +1514,16 @@ export default function File3() {
     };
     function selectShown() {
       keyPositionsSelected = true;
-      keyPositions = [];
-      if (contMotionChecked || keyPosChecked) {
-        for (let i = 0; i < dualPosition.length; i += densityIncrement) {
-          keyPositions.push(dualPosition[i]);
-        }
-      } else if (jointMotionChecked || limbMotionChecked) {
-        for (let i = 0; i < position.length; i += densityIncrement) {
-          keyPositions.push(position[i]);
+      if (keyPositions.length < 1) {
+        keyPositions = [];
+        if (contMotionChecked || keyPosChecked) {
+          for (let i = 0; i < dualPosition.length; i += densityIncrement) {
+            keyPositions.push(dualPosition[i]);
+          }
+        } else if (jointMotionChecked || limbMotionChecked) {
+          for (let i = 0; i < position.length; i += densityIncrement) {
+            keyPositions.push(position[i]);
+          }
         }
       }
       console.log("keypositions added");
@@ -1500,12 +1557,13 @@ export default function File3() {
       // p5.rotateX(p5.PI);
       // p5.rotateY(p5.PI);
       p5.rotateX(p5.PI / 2);
-      p5.scale(0.2);
+      p5.scale(0.15);
       if (objectColor == "normalMaterial") {
         p5.normalMaterial();
         // p5.model(teapot);
         p5.model(wrist);
       } else {
+        p5.strokeWeight(1);
         p5.stroke(objectColor);
         p5.fill(objectColor);
         // p5.model(teapot);
@@ -1513,7 +1571,7 @@ export default function File3() {
       }
     }
     function drawFrame(length) {
-      p5.strokeWeight(4.0);
+      p5.strokeWeight(2.0);
       p5.stroke("blue");
       p5.line(0.0, 0.0, 0.0, length, 0.0, 0.0); // x-axis
       p5.stroke("green");
@@ -1594,7 +1652,7 @@ export default function File3() {
         for (let j = 0; j < position[i].length; j += resolution) {
           //position
           const pointPosition = help.dFromDual(position[i][j]);
-          for (let h = 0; h < pointPosition.length; h++) {
+          for (let h = 0; h < 2; h++) {
             if (pointPosition[h] < 0) pointPosition[h] *= -1;
           }
           const x = p5.map(pointPosition[0], 0, 1, -width / 2, width / 2),
@@ -1602,6 +1660,7 @@ export default function File3() {
           let z = (pointPosition[2] * width) / 2;
           //orientation
           const matrix = help.rFromDual(position[i][j]);
+
           const angles = help.eulerAngles(matrix);
           // color
           p5.stroke(color[0], color[1], color[2]);
@@ -1635,7 +1694,7 @@ export default function File3() {
           let limb = position[i].limbs[j];
           // position
           const pointPosition = help.dFromDual(limb.dualQuaternion);
-          for (let h = 0; h < pointPosition.length; h++) {
+          for (let h = 0; h < 2; h++) {
             if (pointPosition[h] < 0) pointPosition[h] *= -1;
           }
           const x = p5.map(pointPosition[0], 0, 1, -width / 2, width / 2),
@@ -1643,6 +1702,7 @@ export default function File3() {
           let z = (pointPosition[2] * width) / 2;
           //orientation
           const matrix = help.rFromDual(limb.dualQuaternion);
+
           const angles = help.eulerAngles(matrix);
           // color values
           let r = limb.color[0];
@@ -1651,14 +1711,15 @@ export default function File3() {
           p5.stroke(r, g, b);
           if (isKey) {
             p5.push();
-            p5.normalMaterial();
+            if (!kMotionChecked) p5.normalMaterial();
+            p5.strokeWeight(1);
             p5.translate(x, y, z);
             p5.rotateX(angles[0]);
             p5.rotateY(angles[1]);
             p5.rotateZ(angles[2]);
             p5.translate(0, (100 / 2) * (objectSize / 100), 0);
             p5.scale(objectSize / 100);
-            p5.cylinder(4, 100);
+            p5.cylinder(2.5, 100);
             p5.pop();
           } else {
             if (objectChecked) {
@@ -1672,25 +1733,27 @@ export default function File3() {
               p5.scale(objectSize / 100);
               p5.cylinder(2, 100);
               p5.pop();
+
+              if (i == pointPicker.value()) {
+                p5.push();
+                p5.strokeWeight(1);
+                p5.stroke(0, 128, 0);
+                p5.translate(x, y, z);
+                p5.rotateX(angles[0]);
+                p5.rotateY(angles[1]);
+                p5.rotateZ(angles[2]);
+                p5.translate(0, (100 / 2) * (objectSize / 100), 0);
+                p5.scale(objectSize / 100);
+                p5.cylinder(2, 100);
+                p5.pop();
+                selectedPoint = position[i];
+              }
             }
-            if (i == pointPicker.value()) {
-              p5.push();
-              p5.strokeWeight(1);
-              p5.stroke(0, 128, 0);
-              p5.translate(x, y, z);
-              p5.rotateX(angles[0]);
-              p5.rotateY(angles[1]);
-              p5.rotateZ(angles[2]);
-              p5.translate(0, (100 / 2) * (objectSize / 100), 0);
-              p5.scale(objectSize / 100);
-              p5.cylinder(2, 100);
-              p5.pop();
-              selectedPoint = position[i];
-            }
-            if (trajectoryChecked) {
-              p5.strokeWeight(3); // 3
-              p5.vertex(x, y, z);
-            }
+          }
+          //show trajectory of captured motion if continuous motion is checked
+          if (trajectoryChecked && cMotionChecked) {
+            p5.strokeWeight(3);
+            p5.vertex(x, y, z);
           }
         }
         p5.endShape();
@@ -1704,18 +1767,16 @@ export default function File3() {
       objectColor,
       lineC
     ) {
-      let lineCoordinates = [];
       p5.colorMode(p5.RGB, 255, 255, 255);
       for (let i = 0; i < dualQuaternions.length; i += increment) {
         // calc translation
         const pointPosition = help.dFromDual(dualQuaternions[i]);
-        for (let h = 0; h < pointPosition.length; h++) {
+        for (let h = 0; h < 2; h++) {
           if (pointPosition[h] < 0) pointPosition[h] *= -1;
         }
         const x = p5.map(pointPosition[0], 0, 1, -width / 2, width / 2),
           y = p5.map(pointPosition[1], 0, 1, -height / 2, height / 2);
         let z = (pointPosition[2] * width) / 2;
-        lineCoordinates.push([x, y, z]);
         // calc orientation
         const pointOrientation = help.rFromDual(dualQuaternions[i]);
         p5.push();
@@ -1739,8 +1800,11 @@ export default function File3() {
           z,
           1
         );
+        if (coordFrameChecked || objectChecked) p5.scale(objectSize / 100);
+        if (coordFrameChecked) {
+          drawFrame(frameSize);
+        }
         if (objectChecked) {
-          p5.scale(objectSize / 100);
           drawObject(objectColor);
         }
         if (
@@ -1748,14 +1812,11 @@ export default function File3() {
           !bSplineMotionChecked &&
           !bezierMotionChecked &&
           !screwMotionChecked &&
+          !bSplineInterpChecked &&
           coordFrameChecked
         ) {
           highlightPoint();
           selectedPoint = dualQuaternions[i];
-        }
-        if (coordFrameChecked) {
-          p5.scale(objectSize / 100);
-          drawFrame(frameSize);
         }
         p5.pop();
       }
@@ -1764,10 +1825,15 @@ export default function File3() {
         p5.strokeWeight(3);
         p5.noFill();
         p5.beginShape();
-        for (let i = 0; i < lineCoordinates.length; i += increment) {
-          let x = lineCoordinates[i][0],
-            y = lineCoordinates[i][1],
-            z = lineCoordinates[i][2];
+        for (let i = 0; i < dualQuaternions.length; i++) {
+          // calc translation
+          const pointPosition = help.dFromDual(dualQuaternions[i]);
+          for (let h = 0; h < 2; h++) {
+            if (pointPosition[h] < 0) pointPosition[h] *= -1;
+          }
+          const x = p5.map(pointPosition[0], 0, 1, -width / 2, width / 2),
+            y = p5.map(pointPosition[1], 0, 1, -height / 2, height / 2);
+          let z = (pointPosition[2] * width) / 2;
           p5.vertex(x, y, z);
         }
         p5.endShape();
@@ -1778,7 +1844,7 @@ export default function File3() {
       for (let i = 0; i < dualQuaternions.length; i += 1) {
         // calc translation
         const pointPosition = help.dFromDual(dualQuaternions[i]);
-        for (let h = 0; h < pointPosition.length; h++) {
+        for (let h = 0; h < 2; h++) {
           if (pointPosition[h] < 0) pointPosition[h] *= -1;
         }
         const x = p5.map(pointPosition[0], 0, 1, -width / 2, width / 2),
@@ -1808,8 +1874,9 @@ export default function File3() {
           z,
           1
         );
-        drawFrame(30);
+        drawFrame(20);
         if (!timer) drawObject("normalMaterial");
+        if (timer && spatialChecked) drawObject("normalMaterial");
         p5.pop();
         // if (trajectoryChecked) {
         //   p5.stroke("purple");
@@ -1830,16 +1897,20 @@ export default function File3() {
       p5.clear();
       // reset canvas
       if (resetCanvas) {
-        if (spatialChecked && maxZ === 0) p5.camera(0, 0, 1000);
-        if (maxZ > 0) p5.camera(0, 0, (maxZ * 320) / 2 + 200);
+        if (spatialChecked && !(keyPosChecked || contMotionChecked))
+          p5.camera(0, 0, 1000);
+        if (spatialChecked && (keyPosChecked || contMotionChecked))
+          p5.camera(0, 0, 700);
         else {
           p5.camera();
           console.log("reset");
         }
         resetCanvas = false;
       }
-      if (timer && spatialChecked) p5.camera(0, 0, 1000);
-      if (maxZ > 0) p5.camera(0, 0, (maxZ * 320) / 2 + 200);
+      if (timer && spatialChecked && !(keyPosChecked || contMotionChecked))
+        p5.camera(0, 0, 1000);
+      if (timer && spatialChecked && (keyPosChecked || contMotionChecked))
+        p5.camera(0, 0, 700);
       if (whiteBGChecked) p5.background("white");
       else p5.background("black");
       // toggling delete button visibility
@@ -1850,15 +1921,15 @@ export default function File3() {
         pointPicker.attribute("max", position.length - 1);
       }
       // allows for rotation of view using mouse
-      p5.orbitControl();
+      p5.orbitControl(1, 1, 0.1);
       if (cMotionChecked || fileRead[0]) {
         if (dualPosition.length > 0) {
           drawFromQuaternions(
             dualPosition,
             densityIncrement,
-            30,
+            20,
             size,
-            "normalMaterial",
+            p5.color(0, 0, 255),
             [0, 0, 255]
           );
         }
@@ -1892,7 +1963,7 @@ export default function File3() {
           (contMotionChecked || keyPosChecked || fileRead[0] || fileRead[1])
         ) {
           // screw
-          if (screwMotionChecked) screw = help.rationalScrew(points, 0.01);
+          if (screwMotionChecked) screw = help.rationalScrew(points, 0.05);
           else screw = [];
           // bezier
           if (bezierMotionChecked) bezier = help.rationalBezier(points, 0.01);
@@ -1901,13 +1972,22 @@ export default function File3() {
           if (bSplineMotionChecked)
             bSpline = help.bSpline(points, degree, 0.01);
           else bSpline = [];
+          if (bSplineInterpChecked) {
+            interpKey = help.bSplineInterp(points, degree2);
+            if (interpKey.length > 0) {
+              bSplineInterp = help.bSpline(interpKey, degree2, 0.01);
+            }
+          } else {
+            interpKey = [];
+            bSplineInterp = [];
+          }
         }
         if (
           points.length > 0 &&
           (recordedMotion === "joint" || fileRead[2] || fileRead[3])
         ) {
           if (screwMotionChecked) {
-            screw = help.rationalScrewJoints(points, 0.01);
+            screw = help.rationalScrewJoints(points, 0.05);
           } else screw = [];
           if (bezierMotionChecked) {
             bezier = help.rationalBezierJoints(points, 0.01);
@@ -1915,13 +1995,22 @@ export default function File3() {
           if (bSplineMotionChecked) {
             bSpline = help.bSplineJoints(points, degree, 0.01);
           } else bSpline = [];
+          if (bSplineInterpChecked) {
+            interpKey = help.bSplineJointsInterp(points, degree2);
+            if (interpKey.length > 0) {
+              bSplineInterp = help.bSplineJoints(interpKey, degree2, 0.01);
+            }
+          } else {
+            interpKey = [];
+            bSplineInterp = [];
+          }
         }
         if (
           points.length > 0 &&
           (recordedMotion === "limb" || fileRead[4] || fileRead[5])
         ) {
           if (screwMotionChecked) {
-            screw = help.rationalScrewLimbs(points, 0.01);
+            screw = help.rationalScrewLimbs(points, 0.05);
           } else screw = [];
           if (bezierMotionChecked) {
             bezier = help.rationalBezierLimbs(points, 0.01);
@@ -1929,6 +2018,15 @@ export default function File3() {
           if (bSplineMotionChecked) {
             bSpline = help.bSplineLimbs(points, degree, 0.01);
           } else bSpline = [];
+          if (bSplineInterpChecked) {
+            interpKey = help.bSplineLimbsInterp(points, degree2);
+            if (interpKey.length > 0) {
+              bSplineInterp = help.bSplineLimbs(interpKey, degree2, 0.01);
+            }
+          } else {
+            interpKey = [];
+            bSplineInterp = [];
+          }
         }
       }
 
@@ -1940,13 +2038,13 @@ export default function File3() {
             densityIncrement,
             20,
             size,
-            "yellow",
-            [255, 215, 0]
+            p5.color(102, 102, 0),
+            [102, 102, 0]
           );
         if (recordedMotion === "joint" || fileRead[2] || fileRead[3])
-          drawJointsMotion(screw, size, densityIncrement, [255, 215, 0]);
+          drawJointsMotion(screw, size, densityIncrement, [255, 255, 51]);
         if (recordedMotion === "limb" || fileRead[4] || fileRead[5])
-          drawLimbsMotion(screw, size, densityIncrement, [255, 215, 0]);
+          drawLimbsMotion(screw, size, densityIncrement, [102, 102, 0]);
       }
       if (bezier.length > 0) {
         if (contMotionChecked || keyPosChecked || fileRead[0] || fileRead[1])
@@ -1978,23 +2076,56 @@ export default function File3() {
         if (recordedMotion === "limb" || fileRead[4] || fileRead[5])
           drawLimbsMotion(bSpline, size, densityIncrement, [0, 255, 0]);
       }
+      if (bSplineInterp.length > 0) {
+        if (contMotionChecked || keyPosChecked || fileRead[0] || fileRead[1]) {
+          drawFromQuaternions(
+            bSplineInterp,
+            densityIncrement,
+            20,
+            size,
+            p5.color(153, 76, 0),
+            [153, 76, 0]
+          );
+        }
+        if (recordedMotion === "joint" || fileRead[2] || fileRead[3])
+          drawJointsMotion(bSplineInterp, size, densityIncrement, [0, 255, 0]);
+        if (recordedMotion === "limb" || fileRead[4] || fileRead[5])
+          drawLimbsMotion(bSplineInterp, size, densityIncrement, [153, 76, 0]);
+      }
     };
   }
   function JointInterface(p5) {
     let w = 640, //-320
       h = 480; //-240
     let myFont;
+    let cnv;
     p5.preload = () => {
       myFont = p5.loadFont(Inconsolata);
     };
     p5.setup = () => {
-      p5.createCanvas(w, h, p5.WEBGL);
+      cnv = p5.createCanvas(w, h, p5.WEBGL);
       p5.textFont(myFont);
       p5.textSize(150);
     };
     p5.draw = () => {
       p5.clear();
       p5.background("black");
+      if (timer) {
+        if (oneRun2) {
+          const stream = cnv.elt.captureStream(25);
+          mediaRecorder2 = new MediaRecorder(stream, {
+            mimeType: "video/webm;codecs=vp9",
+          });
+          recordedChunks2 = [];
+          mediaRecorder2.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+              recordedChunks2.push(e.data);
+            }
+          };
+          mediaRecorder2.start();
+          oneRun2 = !oneRun2;
+        }
+      }
       // uncheck joints and limbs if motion capture not selected
       if (!jointMotionChecked) {
         for (const [jointName, jointInfo] of Object.entries(jointSelected)) {
@@ -2111,7 +2242,7 @@ export default function File3() {
         );
         drawOtherLimbs();
 
-        drawHead(320 - 320, 50 - 240); // head denoted by nose kp
+        drawHead(320 - 320, 50 - 240, jointSelected.head); // head denoted by nose kp 0,-190
 
         drawJoint(250 - 320, 100 - 240, jointSelected.rshoulder); // right shoulder
         drawJoint(390 - 320, 100 - 240, jointSelected.lshoulder); // left shoulder
@@ -2171,12 +2302,20 @@ export default function File3() {
       p5.line(280 - 320, 200 - 240, 360 - 320, 200 - 240);
     }
 
-    function drawHead(x, y) {
+    function drawHead(x, y, joint) {
       p5.colorMode(p5.RGB, 255, 255, 255);
-      p5.fill(0, 0, 0);
-      p5.stroke("green");
-      p5.strokeWeight(4);
-      p5.circle(x, y, 40);
+      if (joint.selected) {
+        p5.stroke(joint.color[0], joint.color[1], joint.color[2]);
+        p5.fill(joint.color[0], joint.color[1], joint.color[2]);
+      } else {
+        p5.stroke(255, 255, 255);
+        p5.fill(255, 255, 255);
+      }
+      p5.strokeWeight(2);
+      p5.push();
+      p5.translate(x, y);
+      p5.sphere(20);
+      p5.pop();
     }
 
     function drawLimb(x1, y1, x2, y2, limb) {
@@ -2274,6 +2413,8 @@ export default function File3() {
         }
       }
       if (jointMotionChecked) {
+        if ((x - 320) ** 2 + (y - 50) ** 2 <= 20 ** 2)
+          jointSelected.head.selected = !jointSelected.head.selected;
         if ((x - 250) ** 2 + (y - 100) ** 2 <= 10 ** 2)
           jointSelected.rshoulder.selected = !jointSelected.rshoulder.selected;
         if ((x - 390) ** 2 + (y - 100) ** 2 <= 10 ** 2)

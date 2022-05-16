@@ -8,7 +8,7 @@ export default class Helper {
     const r21 = matrix[1][0];
     const r11 = matrix[0][0];
     const thetax = math.atan2(r32, r33);
-    const thetay = math.atan2(-r31, math.sqrt(r32 ** 2 + r33 * 2));
+    const thetay = math.atan2(-r31, math.sqrt(r32 ** 2 + r33 ** 2));
     const thetaz = math.atan2(r21, r11);
     return [thetax, thetay, thetaz];
   }
@@ -87,10 +87,6 @@ export default class Helper {
     const s = this.normalize(math.cross(Vinitial, Vfinal));
 
     // angle of rotation in radians
-    // const theta = math.acos(
-    //   (-1 * this.dot(Vinitial, Vfinal)) /
-    //     (this.mag(Vinitial) * this.mag(Vfinal))
-    // );
     const theta = math.acos(math.dot(Vinitial, Vfinal));
     //console.log((theta * 180) / math.pi);
 
@@ -565,6 +561,7 @@ export default class Helper {
   }
   bSpline(dualQuatArray, p, resolution) {
     // p = degree
+    resolution = this.map(p, 1, dualQuatArray.length - 1, 0.05, 0.01);
     let result = [];
     const n = dualQuatArray.length - 1;
     const m = n + p + 1;
@@ -596,8 +593,8 @@ export default class Helper {
     return result;
   }
   bSplineLimbs(position, p, resolution) {
-    console.log(position);
     // p = degree
+    resolution = this.map(p, 1, position.length - 1, 0.05, 0.01);
     let result = [];
     const n = position.length - 1;
     const m = n + p + 1;
@@ -610,6 +607,7 @@ export default class Helper {
     }
 
     let nLimbs = position[0].limbs.length;
+    // iterate limbs
     for (let j = 0; j < nLimbs; j++) {
       let temp = [];
       for (let u = U[p]; u < U[U.length - 1 - p]; u += resolution) {
@@ -635,6 +633,7 @@ export default class Helper {
   }
   bSplineJoints(position, p, resolution) {
     // p = degree
+    resolution = this.map(p, 1, position.length - 1, 0.05, 0.01);
     let result = [];
     const n = position.length - 1;
     const m = n + p + 1;
@@ -664,6 +663,298 @@ export default class Helper {
         temp.push(sum);
       }
       result.push(temp);
+    }
+    return result;
+  }
+  // Global curve interpolation functions
+  // Centripetal Method
+  CentripetalParam(Q, p) {
+    /* Use centripetal method to parametrize */
+
+    let n = Q.length - 1;
+    let m = n + p + 1;
+    let U = [];
+
+    let d = 0;
+    for (let k = 1; k <= n; k++)
+      d =
+        d +
+        math.sqrt(
+          math.abs(
+            math.pow(Q[k][0] - Q[k - 1][0], 2) +
+              math.pow(Q[k][1] - Q[k - 1][1], 2) +
+              math.pow(Q[k][2] - Q[k - 1][2], 2)
+          )
+        );
+
+    //Calculating parameter value, uk
+    let paramArr = [];
+    paramArr.push(0);
+    for (let k = 1; k <= n; k++)
+      paramArr.push(
+        paramArr[k - 1] +
+          math.sqrt(
+            math.abs(
+              math.pow(Q[k][0] - Q[k - 1][0], 2) +
+                math.pow(Q[k][1] - Q[k - 1][1], 2) +
+                math.pow(Q[k][2] - Q[k - 1][2], 2)
+            )
+          ) /
+            d
+      );
+
+    //Calculating knot vector, U
+    U = [];
+    for (
+      let i = 0;
+      i <= p;
+      i++ //Initial clamp
+    )
+      U.push(0);
+
+    for (let j = 1; j <= n - p; j++) {
+      //Averaging technique
+      let temp = 0;
+      for (let i = j; i <= j + p - 1; i++) temp = temp + paramArr[i];
+      U.push((1 / p) * temp);
+    }
+
+    for (
+      let i = m - p;
+      i <= m;
+      i++ //End clamp
+    )
+      U.push(1);
+
+    return U;
+  }
+  // Uniform method
+  UniformParam(Q, p) {
+    let n = Q.length - 1;
+    let m = n + p + 1;
+
+    //Calculating knot vector, U
+    let U = [];
+
+    for (let i = 0; i <= p; i++) U[i] = 0;
+
+    let j = 0;
+    for (let i = p + 1; i < m - p; i++) {
+      j = j + 1;
+      U[i] = j / (m - 2 * p);
+    }
+
+    for (let i = m; i >= m - p; i--) U[i] = 1;
+
+    return U;
+  }
+  // ALGORITHM A9.1 (Piegl and Tiller)
+  bSplineInterp(Q, p) {
+    /*  Global interpolation through n + 1 points */
+
+    let n = Q.length - 1;
+    let r = Q[0].real.length; //Number of coordinates
+
+    //Knot vector
+    let U = this.UniformParam(Q, p);
+
+    //Calculating parameter value, uk
+    let paramArr = [];
+    paramArr.push(0);
+    for (let k = 1; k <= n - 1; k++) paramArr.push(k / n);
+    paramArr.push(1);
+
+    //Initialize matrix A to zero
+    let A = Array(n + 1)
+      .fill()
+      .map(() => Array(n + 1).fill(0));
+
+    for (let i = 0; i <= n; i++) {
+      //Set up coefficient matrix
+      const span = this.FindSpan(n, p, paramArr[i], U);
+      let temp = this.BasisFuns(span, paramArr[i], p, U); //Get ith row
+      for (let j = 0; j <= temp.length - 1; j++) A[i][span - p + j] = temp[j];
+    }
+
+    //Initialize matrix P to zero
+    let P = [];
+    let P_Real = [];
+    let P_Dual = [];
+
+    //Going across all columns
+    for (let i = 0; i <= r - 1; i++) {
+      let tempReal = [];
+      let tempDual = [];
+
+      for (let j = 0; j <= n; j++) {
+        //Going across all given points (rows)
+        tempReal.push(Q[j].real[i]); //Collects coordinate values into a single vector
+        tempDual.push(Q[j].dual[i]);
+      }
+
+      //Calculate and store final solution in P
+      let solReal = math.lusolve(A, tempReal);
+      let solDual = math.lusolve(A, tempDual);
+
+      let colReal = [];
+      let colDual = [];
+      for (let j = 0; j <= n; j++) {
+        colReal.push(solReal[j][0]);
+        colDual.push(solDual[j][0]);
+      }
+      P_Real.push(colReal);
+      P_Dual.push(colDual);
+    }
+
+    //Store calculated control points, P
+    for (let i = 0; i <= n; i++)
+      P.push({
+        real: math.transpose(P_Real)[i],
+        dual: math.transpose(P_Dual)[i],
+      });
+
+    return P;
+  }
+  bSplineLimbsInterp(Q, p) {
+    let result = []; // array to return
+
+    let n = Q.length - 1;
+    let r = Q[0].limbs[0].dualQuaternion.real.length; //Number of coordinates
+
+    //Knot vector
+    let U = this.UniformParam(Q, p);
+
+    //Calculating parameter value, uk
+    let paramArr = [];
+    paramArr.push(0);
+    for (let k = 1; k <= n - 1; k++) paramArr.push(k / n);
+    paramArr.push(1);
+
+    let nLimbs = Q[0].limbs.length;
+    // iterate limbs
+    for (let L = 0; L < nLimbs; L++) {
+      let color = Q[0].limbs[L].color;
+      //Initialize matrix A to zero
+      let A = Array(n + 1)
+        .fill()
+        .map(() => Array(n + 1).fill(0));
+
+      for (let i = 0; i <= n; i++) {
+        //Set up coefficient matrix
+        const span = this.FindSpan(n, p, paramArr[i], U);
+        let temp = this.BasisFuns(span, paramArr[i], p, U); //Get ith row
+        for (let j = 0; j <= temp.length - 1; j++) A[i][span - p + j] = temp[j];
+      }
+
+      //Initialize matrix P to zero
+      let P = [];
+      let P_Real = [];
+      let P_Dual = [];
+
+      //Going across all columns
+      for (let i = 0; i <= r - 1; i++) {
+        let tempReal = [];
+        let tempDual = [];
+
+        for (let j = 0; j <= n; j++) {
+          //Going across all given points (rows)
+          tempReal.push(Q[j].limbs[L].dualQuaternion.real[i]); //Collects coordinate values into a single vector
+          tempDual.push(Q[j].limbs[L].dualQuaternion.dual[i]);
+        }
+
+        //Calculate and store final solution in P
+        let solReal = math.lusolve(A, tempReal);
+        let solDual = math.lusolve(A, tempDual);
+
+        let colReal = [];
+        let colDual = [];
+        for (let j = 0; j <= n; j++) {
+          colReal.push(solReal[j][0]);
+          colDual.push(solDual[j][0]);
+        }
+        P_Real.push(colReal);
+        P_Dual.push(colDual);
+      }
+      //Store calculated control points, P
+      for (let i = 0; i <= n; i++)
+        P.push({
+          real: math.transpose(P_Real)[i],
+          dual: math.transpose(P_Dual)[i],
+        });
+      if (result.length === 0) {
+        for (let i = 0; i < P.length; i++) {
+          result.push({ limbs: [{ dualQuaternion: P[i], color: color }] });
+        }
+      } else {
+        for (let i = 0; i < P.length; i++) {
+          result[i].limbs.push({ dualQuaternion: P[i], color: color });
+        }
+      }
+    }
+    return result;
+  }
+  bSplineJointsInterp(Q, p) {
+    let result = []; // array to return
+
+    let n = Q.length - 1;
+    let r = Q[0].joints[0].position.length; //Number of coordinates
+
+    //Knot vector
+    let U = this.UniformParam(Q, p);
+
+    //Calculating parameter value, uk
+    let paramArr = [];
+    paramArr.push(0);
+    for (let k = 1; k <= n - 1; k++) paramArr.push(k / n);
+    paramArr.push(1);
+
+    let nJoints = Q[0].joints.length;
+    // iterate limbs
+    for (let L = 0; L < nJoints; L++) {
+      let color = Q[0].joints[L].color;
+      //Initialize matrix A to zero
+      let A = Array(n + 1)
+        .fill()
+        .map(() => Array(n + 1).fill(0));
+
+      for (let i = 0; i <= n; i++) {
+        //Set up coefficient matrix
+        const span = this.FindSpan(n, p, paramArr[i], U);
+        let temp = this.BasisFuns(span, paramArr[i], p, U); //Get ith row
+        for (let j = 0; j <= temp.length - 1; j++) A[i][span - p + j] = temp[j];
+      }
+
+      //Initialize matrix P to zero
+      let P = Array(n + 1)
+        .fill()
+        .map(() => Array(r).fill(0));
+
+      //Going across all columns
+      for (let i = 0; i <= r - 1; i++) {
+        let tempQ = [];
+
+        for (let j = 0; j <= n; j++) {
+          //Going across all given points (rows)
+          tempQ.push(Q[j].joints[L].position[i]); //Collects coordinate values into a single vector
+        }
+
+        //Calculate and store final solution in P
+        let sol = math.lusolve(A, tempQ);
+
+        for (let j = 0; j <= n; j++) {
+          P[j][i] = sol[j][0];
+        }
+      }
+
+      if (result.length === 0) {
+        for (let i = 0; i < P.length; i++) {
+          result.push({ joints: [{ position: P[i], color: color }] });
+        }
+      } else {
+        for (let i = 0; i < P.length; i++) {
+          result[i].joints.push({ position: P[i], color: color });
+        }
+      }
     }
     return result;
   }
