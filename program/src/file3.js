@@ -2127,7 +2127,6 @@ export default function File3() {
     };
     p5.setup = () => {
       cnv = p5.createCanvas(width, height, p5.WEBGL);
-
       p5.textFont(myFont);
       p5.textSize(150);
     };
@@ -2161,6 +2160,7 @@ export default function File3() {
           if (limbInfo.selected) limbInfo.selected = false;
         }
       }
+      if (resetCanvas) p5.camera(0, 0, 1000);
       if (characterSelectorValue === "Pose Skeleton" || timer) {
         p5.orbitControl();
         p5.fill("red");
