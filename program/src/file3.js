@@ -200,7 +200,9 @@ export default function File3() {
   // append position array during recording
   let position = [],
     originalPosition = [];
-  let poses;
+  let poses,
+    skeletonTrajectory = [],
+    characterSelectorValue;
   let dualPosition = [],
     originaldualPosition = [];
   let keyPositions = [];
@@ -301,14 +303,6 @@ export default function File3() {
         inCircle2 = (x - center_x) ** 2 + (y - center_y) ** 2 <= radius ** 2;
     }
 
-    // count down 5 seconds first
-    if (inCircleCounter > 10 && timer == false && startTime == null) {
-      startTime = new Date();
-    }
-    if (inCircleCounter > 10 && timer == false && startTime != null) {
-      seconds = math.floor((new Date() - startTime) / 1000);
-    }
-
     if (results) {
       if (results.rightHandLandmarks && results.poseLandmarks) {
         const hand = results.rightHandLandmarks;
@@ -323,6 +317,14 @@ export default function File3() {
           if (inCircle2) {
             inCircleCounter2++;
           }
+        }
+
+        // count down 5 seconds first
+        if (inCircleCounter > 10 && timer == false && startTime == null) {
+          startTime = new Date();
+        }
+        if (inCircleCounter > 10 && timer == false && startTime != null) {
+          seconds = math.floor((new Date() - startTime) / 1000);
         }
 
         // intiatie recording
@@ -340,6 +342,12 @@ export default function File3() {
           keyPositions = [];
           dualPositionTemp = [];
           frameBuffer = 0;
+
+          skeletonTrajectory = [];
+          keyPositionsSelected = false; // reset it
+          maxZ = 0;
+          prevZ = 0;
+          fileRead = fileRead.map((x) => false);
           // start count
           startTime = new Date();
           timer = true;
@@ -349,10 +357,6 @@ export default function File3() {
 
         // do the recording
         if (timer == true) {
-          keyPositionsSelected = false; // reset it
-          maxZ = 0;
-          prevZ = 0;
-          fileRead = fileRead.map((x) => false);
           if (contMotionChecked) recordedMotion = "continuous";
           if (keyPosChecked) recordedMotion = "key";
           if (limbMotionChecked) recordedMotion = "limb";
@@ -468,10 +472,12 @@ export default function File3() {
               }
             }
             position.push({ joints: temp, time: seconds });
+            skeletonTrajectory.push({ joints: temp, time: seconds });
           }
 
           if (limbMotionChecked) {
             let temp = []; // what to track using index and color
+            let temp2 = []; // for skeleton trajectory
             for (const [limbName, limbInfo] of Object.entries(limbSelected)) {
               let limb = limbInfo;
               let P1Planar, P2Planar, P1Spatial, P2Spatial;
@@ -531,14 +537,17 @@ export default function File3() {
                   if (P1Spatial[2] > prevZ) maxZ = P1Spatial[2];
                   prevZ = P1Spatial[2];
                 }
+                temp2.push({ position: P1Spatial, color: limb.color });
               }
             }
             position.push({ limbs: temp, time: seconds });
+            skeletonTrajectory.push({ limbs: temp2, time: seconds });
           }
         }
 
         // end recording
         if (timer == true && inCircleCounter2 > 5) {
+          console.log(skeletonTrajectory);
           recordingEnded = true;
           // reset variables
           timer = false;
@@ -553,6 +562,7 @@ export default function File3() {
           for (let i = 0; i < 5; i++) {
             dualPosition.pop();
             position.pop();
+            skeletonTrajectory.pop();
           }
 
           originaldualPosition = dualPosition;
@@ -569,7 +579,13 @@ export default function File3() {
     frameCount = FPS * 4;
     previousFrameTime = time;
 
-    if (results.poseLandmarks) poses = results.poseLandmarks;
+    if (results.poseLandmarks && timer) {
+      poses = results.poseLandmarks;
+      // track wrist 16
+      if (contMotionChecked || keyPosChecked) {
+        skeletonTrajectory.push([poses[16].x, poses[16].y, poses[16].z]);
+      }
+    }
 
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -616,6 +632,8 @@ export default function File3() {
     let startRecording;
     let spatialMotionCheckBox;
     let planarMotionCheckBox;
+    // top right window selection
+    let characterSelector;
 
     // Type of Motion check boxes
     let screwMotionCheckBox;
@@ -1021,6 +1039,10 @@ export default function File3() {
       keyPositionCheckBox.position(20, 80);
       limbMotionCheckbox = p5.createCheckbox(" Limb Motion Capture", false);
       limbMotionCheckbox.position(20, 110);
+      characterSelector = p5.createSelect();
+      characterSelector.position(200, 125);
+      characterSelector.option("Selection UI");
+      characterSelector.option("Pose Skeleton");
       jointMotionCheckbox = p5.createCheckbox(" Joint Motion Capture", false);
       jointMotionCheckbox.position(20, 140);
       planarMotionCheckBox = p5.createCheckbox(" Planar", false);
@@ -1292,6 +1314,7 @@ export default function File3() {
       // size
       size = sizeSlider.value();
 
+      characterSelectorValue = characterSelector.value();
       checked = startRecording.checked();
       spatialChecked = spatialMotionCheckBox.checked();
       planarChecked = planarMotionCheckBox.checked();
@@ -2095,15 +2118,16 @@ export default function File3() {
     };
   }
   function JointInterface(p5) {
-    let w = 640, //-320
-      h = 480; //-240
+    let width = 640, //-320
+      height = 480; //-240
     let myFont;
     let cnv;
     p5.preload = () => {
       myFont = p5.loadFont(Inconsolata);
     };
     p5.setup = () => {
-      cnv = p5.createCanvas(w, h, p5.WEBGL);
+      cnv = p5.createCanvas(width, height, p5.WEBGL);
+
       p5.textFont(myFont);
       p5.textSize(150);
     };
@@ -2137,7 +2161,8 @@ export default function File3() {
           if (limbInfo.selected) limbInfo.selected = false;
         }
       }
-      if (timer) {
+      if (characterSelectorValue === "Pose Skeleton" || timer) {
+        p5.orbitControl();
         p5.fill("red");
         p5.text(FPS, -700, -400);
         p5.camera(0, 0, 1000);
@@ -2174,6 +2199,68 @@ export default function File3() {
           drawConnections(connections3);
           drawConnections(connections4);
           drawConnections(connections5);
+          if (contMotionChecked || keyPosChecked) {
+            p5.stroke("purple");
+            p5.strokeWeight(5);
+            p5.noFill();
+            p5.beginShape();
+            for (let i = 0; i < skeletonTrajectory.length; i++) {
+              const x = p5.map(skeletonTrajectory[i][0], 0, 1, -320, 320);
+              const y = p5.map(skeletonTrajectory[i][1], 0, 1, -240, 240);
+              const z = skeletonTrajectory[i][2] * -320;
+              p5.vertex(x, y, z);
+            }
+            p5.endShape();
+          } else if (
+            recordedMotion != "continuous" &&
+            recordedMotion != "key"
+          ) {
+            if (jointMotionChecked) {
+              p5.colorMode(p5.RGB, 255, 255, 255);
+              let nJoints = skeletonTrajectory[0].joints.length;
+              for (let j = 0; j < nJoints; j++) {
+                p5.strokeWeight(5);
+                p5.noFill();
+                p5.beginShape();
+                for (let i = 0; i < skeletonTrajectory.length; i++) {
+                  let joint = skeletonTrajectory[i].joints[j];
+                  // position
+                  const x = p5.map(joint.position[0], 0, 1, -320, 320);
+                  const y = p5.map(joint.position[1], 0, 1, -240, 240);
+                  const z = joint.position[2] * -320;
+                  // color values
+                  let r = joint.color[0];
+                  let g = joint.color[1];
+                  let b = joint.color[2];
+                  p5.stroke(r, g, b);
+                  p5.vertex(x, y, z);
+                }
+                p5.endShape();
+              }
+            } else if (limbMotionChecked) {
+              p5.colorMode(p5.RGB, 255, 255, 255);
+              let nLimbs = skeletonTrajectory[0].limbs.length;
+              for (let j = 0; j < nLimbs; j++) {
+                p5.strokeWeight(5);
+                p5.noFill();
+                p5.beginShape();
+                for (let i = 0; i < skeletonTrajectory.length; i++) {
+                  let limb = skeletonTrajectory[i].limbs[j];
+                  // position
+                  const x = p5.map(limb.position[0], 0, 1, -320, 320);
+                  const y = p5.map(limb.position[1], 0, 1, -240, 240);
+                  const z = limb.position[2] * -320;
+                  // color values
+                  let r = limb.color[0];
+                  let g = limb.color[1];
+                  let b = limb.color[2];
+                  p5.stroke(r, g, b);
+                  p5.vertex(x, y, z);
+                }
+                p5.endShape();
+              }
+            }
+          }
         }
       } else {
         p5.camera();
