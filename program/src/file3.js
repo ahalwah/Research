@@ -245,14 +245,15 @@ export default function File3() {
   let inCircle = false; // to start recording
   let inCircle2 = false; // to end recording
 
-  const onResults = (results) => {
-    const canvasElement = output_canvas.current;
-    const canvasCtx = canvasElement.getContext("2d");
+  // variables for defining position of recording buttons
+  let center_x = 60,
+    center_y = 50,
+    radius = 30;
+  let canvasElement;
 
-    // variables for defining position of recording buttons
-    const center_x = 60,
-      center_y = 50,
-      radius = 30;
+  const onResults = (results) => {
+    canvasElement = output_canvas.current;
+    let canvasCtx = canvasElement.getContext("2d");
 
     drawResults(results, new Date());
     // write count down seconds on the canvas
@@ -592,6 +593,15 @@ export default function File3() {
   };
 
   useEffect(() => {
+    canvasElement = output_canvas.current;
+    canvasElement.addEventListener("mousedown", function (e) {
+      let rect = canvasElement.getBoundingClientRect();
+      let mouseX = e.clientX - rect.left;
+      let mouseY = e.clientY - rect.top;
+      center_x = mouseX;
+      center_y = mouseY;
+    });
+
     const holistic = new Holistic.Holistic({
       locateFile: (file) => {
         return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
